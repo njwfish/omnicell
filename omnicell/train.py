@@ -120,8 +120,7 @@ def main(*args):
     logger.info("Application started")
 
 
-    catalogue = Catalogue(DATA_CATALOGUE_PATH)
-    loader = DataLoader(config, catalogue)
+    loader = DataLoader(config)
     
     adata, pert_rep_map = loader.get_training_data()
 

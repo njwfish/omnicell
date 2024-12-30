@@ -72,10 +72,9 @@ def get_identity_features(adata):
 
 
 class DataLoader:
-    def __init__(self, config: Config, data_catalogue: Catalogue):
+    def __init__(self, config: Config):
         self.config = config
-        self.data_catalogue = data_catalogue
-        self.training_dataset_details: DatasetDetails = data_catalogue.get_dataset_details(config.get_training_dataset_name())
+        self.training_dataset_details: DatasetDetails = Catalogue.get_dataset_details(config.get_training_dataset_name())
 
         logger.debug(f"Training dataset details: {self.training_dataset_details}")
 
@@ -120,7 +119,7 @@ class DataLoader:
 
                 #TODO: This is something I will need to change
                 adata.obsm["embedding"] = np.load(self.config.get_local_cell_embedding_path())
-                
+
             elif self.config.get_cell_embedding_name() in dataset_details.cell_embeddings:            
                 #We replace the data matrix with the cell embeddings
                 adata.obsm["embedding"] = adata.obsm[self.config.get_cell_embedding_name()]

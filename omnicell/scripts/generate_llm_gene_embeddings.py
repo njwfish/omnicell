@@ -38,9 +38,8 @@ def main():
 
     assert args.dataset_name is not None, "Please provide a dataset name"
 
-    catalogue = Catalogue(DATA_CATALOGUE_PATH)
 
-    ds_details = catalogue.get_dataset_details(args.dataset_name)
+    ds_details = Catalogue.get_dataset_details(args.dataset_name)
 
     if args.model_name in ds_details.gene_embeddings:
         logger.info(f"Embedding {args.model_name} already exists for dataset {args.dataset_name} - Terminating")
@@ -110,7 +109,7 @@ def main():
 
 
     #Register the new embedding in the catalogue, This modifies the underlying yaml file
-    catalogue.register_new_gene_embedding(args.dataset_name, args.model_name)
+    Catalogue.register_new_gene_embedding(args.dataset_name, args.model_name)
 
     print("Embedding generated and saved successfully")
 
