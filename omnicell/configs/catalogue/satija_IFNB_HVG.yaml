@@ -8,5 +8,7 @@ folder_path: /orcd/archive/abugoot/001/Projects/dlesman/datasets/satija_IFNB_raw
 log1p_transformed: false
 path: /orcd/archive/abugoot/001/Projects/dlesman/datasets/satija_IFNB_raw/Seurat_IFNB.h5ad
 pert_embeddings: []
+gene_embeddings: []
+precomputed_DEGs: False
 pert_key: gene
 var_names_key: gene

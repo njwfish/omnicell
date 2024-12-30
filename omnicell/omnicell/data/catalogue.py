@@ -22,11 +22,11 @@ class DatasetDetails:
     HVG: bool
     log1p_transformed: bool
     count_normalized: bool
+    precomputed_DEGs: bool
     description: Optional[str] = None
     pert_embeddings: List[str] = field(default_factory=list)
     cell_embeddings: List[str] = field(default_factory=list)
     gene_embeddings: List[str] = field(default_factory=list)
-    precomputed_DEGs: bool
 
 
     def to_dict(self):
@@ -46,7 +46,6 @@ class Catalogue:
                 with open(file_path) as f:
                     file_name = os.path.basename(fp)
                     dataset_name = file_name.split(".")[0]
-
                     self._catalogue[dataset_name] = DatasetDetails(**yaml.load(f, Loader=yaml.FullLoader))
 
 

@@ -1,5 +1,7 @@
 HVG: false
 cell_embeddings: []
+gene_embeddings: []
+precomputed_DEGs: False
 cell_key: cell_type
 control: control
 count_normalized: false

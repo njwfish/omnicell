@@ -1,4 +1,5 @@
 
+from turtle import back
 import scanpy as sc
 from omnicell.data.loader import DataLoader, DatasetDetails
 import torch 
@@ -9,6 +10,15 @@ import json
 from omnicell.data.catalogue import Catalogue, DatasetDetails
 
 import logging
+import scanpy as sc
+from omnicell.data.loader import DataLoader, DatasetDetails
+import torch 
+from transformers import AutoTokenizer, AutoModel
+import transformers
+import numpy as np
+
+print(torch.cuda.is_available())
+
 
 logger = logging.getLogger(__name__)
 
@@ -38,44 +48,45 @@ def main():
 
     # Dealing with https://github.com/h5py/h5py/issues/1679
     print(f"Loading dataset from {ds_details.path}")
-    with open(ds_details.path, 'rb') as f:
-        adata = sc.read_h5ad(f)
+    adata = sc.read(ds_details.path, backed='r')
+
+    tokenizer = transformers.LlamaTokenizer.from_pretrained(
+    'chaoyi-wu/PMC_LLAMA_7B',
+    local_files_only=False
+    )
+
+    model = transformers.LlamaForCausalLM.from_pretrained(
+        'chaoyi-wu/PMC_LLAMA_7B',
+        local_files_only=False
+    ).to("cuda")
 
 
     
 
-    perts = [x for x in adata.obs[pert_key].unique() if x != control_pert]
 
-    print(f"Loaded dataset with {len(perts)} non control perts")
-
-
-
-    print(f"Fetching model from huggingface")
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained("chaoyi-wu/PMC_LLAMA_7B")
-
-    # Load model
-    model = AutoModel.from_pretrained("chaoyi-wu/PMC_LLAMA_7B")
+    
+    gene_names = adata.var["gene"]
 
 
-    print(f"Generating embeddings for {len(perts)} perts")
-    embeddings = {}
+    gene_names_idx = gene_names.index.to_numpy().astype(np.int32) - 1
 
-    for pert in perts:
-        text = pert.upper()
+    gene_names = list(gene_names)
+    tokenizer.pad_token = tokenizer.eos_token
 
-        inputs = tokenizer(text, return_tensors="pt")
+    
 
-        # Get the embeddings
+    for i, g in enumerate(gene_names):
+
+        inputs = tokenizer(g, return_tensors="pt")
+
         outputs = model(**inputs)
 
-        embedding = torch.squeeze(outputs.pooler_output)
+        print(outputs)
 
-        embedding = embedding.detach().cpu()
-        embedding.requires_grad = False
+        break
 
-        embeddings[pert] = embedding
-
+    
+    """
 
     #Overwrites any existing file with the same name
     torch.save(embeddings, f"{ds_details.folder_path}/llamaPMC.pt")
@@ -84,7 +95,7 @@ def main():
 
 
     #Register the new embedding in the catalogue, This modifies the underlying yaml file
-    catalogue.register_new_pert_embedding(args.dataset_name, "llamaPMC")
+    catalogue.register_new_pert_embedding(args.dataset_name, "llamaPMC")"""
 
 
 
