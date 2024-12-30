@@ -5,10 +5,10 @@ control: NT
 count_normalized: false
 description: Some description of the dataset
 folder_path: /orcd/archive/abugoot/001/Projects/dlesman/datasets/satija_IFNB_raw/
+gene_embeddings: []
 log1p_transformed: false
 path: /orcd/archive/abugoot/001/Projects/dlesman/datasets/satija_IFNB_raw/Seurat_IFNB.h5ad
 pert_embeddings: []
-gene_embeddings: []
-precomputed_DEGs: False
 pert_key: gene
+precomputed_DEGs: false
 var_names_key: gene

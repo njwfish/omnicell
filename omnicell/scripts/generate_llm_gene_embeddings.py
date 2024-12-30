@@ -32,7 +32,7 @@ def main():
 
     parser.add_argument('--dataset_name', type=str, help='Name of the dataset')
 
-    parser.add_argument('--model_name', choices=["MMedllama-3-8B", "llamaPMC-13B", "llamaPMC-7B"], help='Name of the model to use for embedding generation')
+    parser.add_argument('--model_name', choices=["MMedllama-3-8B", "llamaPMC-13B", "llamaPMC-7B", "bioBERT"], help='Name of the model to use for embedding generation')
 
     args = parser.parse_args()
 
@@ -61,6 +61,9 @@ def main():
     elif args.model_name == "llamaPMC-7B":
         tokenizer = transformers.LlamaTokenizer.from_pretrained('chaoyi-wu/PMC_LLAMA_7B')
         model = transformers.LlamaForCausalLM.from_pretrained('chaoyi-wu/PMC_LLAMA_7B').to(device)
+    elif args.model_name == "bioBERT":
+        tokenizer = AutoTokenizer.from_pretrained("dmis-lab/biobert-v1.1")
+        model = AutoModel.from_pretrained("dmis-lab/biobert-v1.1").to(device)
 
 
    
@@ -85,12 +88,14 @@ def main():
 
 
         outputs = model(**inputs)
+        
 
 
-        outputs = outputs.logits.squeeze(0)
-        outputs = outputs.mean(axis=0)
-
-
+        if args.model_name != "bioBERT":
+            outputs = outputs.logits.squeeze(0)
+            outputs = outputs.mean(axis=0)
+        else:
+            outputs = torch.squeeze(outputs.pooler_output)        
 
         embeddings.append(outputs.cpu().detach())
         

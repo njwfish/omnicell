@@ -1,17 +1,16 @@
 HVG: false
 cell_embeddings: []
-gene_embeddings: []
-precomputed_DEGs: False
 cell_key: cell_type
 control: non-targeting
 count_normalized: false
-description: Essential genes 
+description: Essential genes
 folder_path: /orcd/data/omarabu/001/Omnicell_datasets/essential_gene_knockouts_raw
+gene_embeddings: []
 log1p_transformed: false
 path: /orcd/data/omarabu/001/Omnicell_datasets/essential_gene_knockouts_raw/essential_gene_knockouts_raw.h5ad
 pert_embeddings:
 - UCE_ESM2_Mean_Imputed
 - BioBERT
 pert_key: gene
+precomputed_DEGs: false
 var_names_key: null
-

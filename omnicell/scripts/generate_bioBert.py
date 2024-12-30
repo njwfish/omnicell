@@ -1,4 +1,5 @@
 
+from regex import E
 import scanpy as sc
 from omnicell.data.loader import DataLoader, DatasetDetails
 import torch 
@@ -69,12 +70,16 @@ def main():
         # Get the embeddings
         outputs = model(**inputs)
 
+        print(f"Outputs keys {outputs.keys()}")
+
         embedding = torch.squeeze(outputs.pooler_output)
 
         embedding = embedding.detach().cpu()
         embedding.requires_grad = False
 
         embeddings[pert] = embedding
+
+        raise Exception("Stop here")
 
 
     #Overwrites any existing file with the same name
