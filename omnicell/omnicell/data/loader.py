@@ -120,6 +120,7 @@ class DataLoader:
 
                 #TODO: This is something I will need to change
                 adata.obsm["embedding"] = np.load(self.config.get_local_cell_embedding_path())
+                
             elif self.config.get_cell_embedding_name() in dataset_details.cell_embeddings:            
                 #We replace the data matrix with the cell embeddings
                 adata.obsm["embedding"] = adata.obsm[self.config.get_cell_embedding_name()]

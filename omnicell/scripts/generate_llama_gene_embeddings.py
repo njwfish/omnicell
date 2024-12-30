@@ -32,7 +32,7 @@ def main():
 
     parser.add_argument('--dataset_name', type=str, help='Name of the dataset')
 
-    parser.add_argument('--model_name', choices=["MMedllama-3-8B, llamaPMC-13B", "llamaPMC-7B"], help='Name of the model to use for embedding generation')
+    parser.add_argument('--model_name', choices=["MMedllama-3-8B", "llamaPMC-13B", "llamaPMC-7B"], help='Name of the model to use for embedding generation')
 
     args = parser.parse_args()
 
@@ -46,8 +46,8 @@ def main():
         logger.info(f"Embedding {args.model_name} already exists for dataset {args.dataset_name} - Terminating")
         return
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    assert device == "cuda", "CUDA is not available"
+    assert torch.cuda.is_available(), "CUDA not available"
+    device = torch.device("cuda")
 
     model = None
     tokenizer = None
@@ -63,22 +63,15 @@ def main():
         model = transformers.LlamaForCausalLM.from_pretrained('chaoyi-wu/PMC_LLAMA_7B').to(device)
 
 
-    #Getting the dataset details from the data_catalogue.json
-
-    pert_key = ds_details.pert_key
-    control_pert = ds_details.control
-    
+   
 
     print(f"Loading dataset from {ds_details.path}")
     adata = sc.read(ds_details.path, backed='r') 
 
 
-    gene_names = adata.var["gene"]
+    gene_names = adata.var_names
 
 
-    gene_names_idx = gene_names.index.to_numpy().astype(np.int32) - 1
-
-    gene_names = list(gene_names)
     tokenizer.pad_token = tokenizer.eos_token
 
     
@@ -102,10 +95,9 @@ def main():
         embeddings.append(outputs.cpu().detach())
         
 
-
     embeddings = torch.stack(embeddings)
 
-    print(embeddings.shape)
+    print(f"Embeddings shape: {embeddings.shape}")
     
 
     torch.save(embeddings, f"{ds_details.folder_path}/{args.model_name}.pt")
