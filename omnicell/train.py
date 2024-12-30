@@ -26,8 +26,16 @@ logger = logging.getLogger(__name__)
 
 random.seed(42)
 
-def get_model(model_name, config_model, loader, pert_rep, pert_map, input_dim, device, pert_ids):
+def get_model(model_name, config_model, loader, pert_rep_map, input_dim, device, pert_ids):
     
+    if pert_rep_map is not None:
+        pert_keys = list(pert_rep_map.keys())
+        pert_rep = np.array([pert_rep_map[k] for k in pert_keys])
+        pert_map = {k: i for i, k in enumerate(pert_keys)}
+    else:
+        pert_rep = None
+        pert_map = None
+
 
     if "nearest-neighbor_pert_emb" in model_name:
         from omnicell.models.nearest_neighbor.predictor import NearestNeighborPredictor
@@ -76,6 +84,9 @@ def get_model(model_name, config_model, loader, pert_rep, pert_map, input_dim, d
         model = OracleNNPredictor(adata_cheat)
 
     elif "sclambda" in model_name:
+        from omnicell.models.sclambda.predictor import scLAMBDAPredictor
+        logger.info("SCLambda model selected")
+        model = scLAMBDAPredictor(config_model, input_dim, device, pert_ids)
         
     else:
         raise ValueError(f'Unknown model name {model_name}')
@@ -114,13 +125,7 @@ def main(*args):
     
     adata, pert_rep_map = loader.get_training_data()
 
-    if pert_rep_map is not None:
-        pert_keys = list(pert_rep_map.keys())
-        pert_rep = np.array([pert_rep_map[k] for k in pert_keys])
-        pert_map = {k: i for i, k in enumerate(pert_keys)}
-    else:
-        pert_rep = None
-        pert_map = None
+  
         
     input_dim = adata.obsm['embedding'].shape[1]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -131,7 +136,7 @@ def main(*args):
 
     logger.debug(f"Training data loaded, perts are: {adata.obs[PERT_KEY].unique()}")
 
-    model = get_model(config.get_model_name(), config.model_config, loader, pert_rep, pert_map, input_dim, device, pert_ids)
+    model = get_model(config.get_model_name(), config.model_config, loader, pert_rep_map, input_dim, device, pert_ids)
 
 
     
@@ -143,7 +148,7 @@ def main(*args):
         embedding_model_savepath = f"{config.get_train_path()}/embedding"
 
 
-        embedding_model = get_model(local_embedding_config['name'], local_embedding_config, loader, pert_rep, pert_map, input_dim, device, pert_ids)
+        embedding_model = get_model(local_embedding_config['name'], local_embedding_config, loader, pert_rep_map, input_dim, device, pert_ids)
 
         if hasattr(embedding_model, 'save') and hasattr(embedding_model, 'load'):
             if embedding_model.load(embedding_model_savepath):

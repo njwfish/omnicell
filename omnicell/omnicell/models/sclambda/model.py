@@ -24,18 +24,16 @@ logger = logging.getLogger(__name__)
 
 class ModelPredictor(object):
     def __init__(self, 
-                 gene_emb, # dictionary for gene embeddings
                  input_dim,
-                 latent_dim = 30, hidden_dim = 512,
-                 training_epochs = 200,
-                 batch_size = 500,
-                 lambda_MI = 200,
-                 eps = 0.001,
-                 seed = 1234,
-                 model_path = "models",
-                 validation_frac = 0.2 
+                 latent_dim,
+                 hidden_dim,
+                 training_epochs,
+                 batch_size,
+                 lambda_MI,
+                 eps,
+                 seed,
+                 validation_frac
                  ):
-
 
 
         # add device
@@ -48,17 +46,13 @@ class ModelPredictor(object):
             torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.benchmark = True
 
-        self.gene_emb = gene_emb
         self.x_dim = input_dim
-        self.p_dim = gene_emb[list(gene_emb.keys())[0]].shape[0]
-        self.gene_emb.update({'ctrl': np.zeros(self.p_dim)})
         self.latent_dim = latent_dim
         self.hidden_dim = hidden_dim
         self.training_epochs = training_epochs
         self.batch_size = batch_size
         self.lambda_MI = lambda_MI
         self.eps = eps
-        self.model_path = model_path
         self.validation_frac = validation_frac
 
 
@@ -66,6 +60,15 @@ class ModelPredictor(object):
 
     def train(self, adata: sc.AnnData):
             
+            gene_emb_temp = adata.varm[GENE_EMBEDDING_KEY]
+            self.p_dim = self.gene_emb.shape[1]
+
+            self.gene_emb = {}
+            for i, g in enumerate(adata.var_names):
+                self.gene_emb[g] = gene_emb_temp[i]
+
+            self.gene_emb.update({'ctrl': np.zeros(self.p_dim)})
+
 
             #Do the split
             adata = adata.copy()
@@ -140,6 +143,7 @@ class ModelPredictor(object):
                 delta_i = np.mean(adata_i.X, axis=0)
                 self.pert_delta[i] = delta_i
 
+            self.train()
 
 
     def loss_function(self, x, x_hat, p, p_hat, mean_z, log_var_z, s, s_marginal, T):
