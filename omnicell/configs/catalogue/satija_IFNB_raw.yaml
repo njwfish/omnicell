@@ -13,5 +13,5 @@ pert_embeddings:
 - UCE_ESM2_Mean_Imputed
 - BioBERT
 pert_key: gene
-var_names_key: gene
+var_names_key: null
 
