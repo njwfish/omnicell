@@ -13,3 +13,11 @@ cell_graphs = []
                                 y.toarray(), de_idx, pert_category, pert_idx))
 ```
 
+- Making validation work with the MSE instead of on top DEG to eliminate extremely time consuming preprocessing:
+```python
+            #Changed validation to use MSE instead of DE MSE so that we can train without precomputing DEGS
+            if val_metrics['mse'] < min_val:
+                min_val = val_metrics['mse']
+                best_model = deepcopy(self.model)
+```
+

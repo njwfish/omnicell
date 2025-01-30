@@ -573,8 +573,9 @@ class GEARS:
                                'train_de_' + m: train_metrics[m + '_de'],
                                'val_de_'+m: val_metrics[m + '_de']})
                
-            if val_metrics['mse_de'] < min_val:
-                min_val = val_metrics['mse_de']
+            #Changed validation to use MSE instead of DE MSE so that we can train without precomputing DEGS
+            if val_metrics['mse'] < min_val:
+                min_val = val_metrics['mse']
                 best_model = deepcopy(self.model)
                 
         print_sys("Done!")

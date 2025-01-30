@@ -15,6 +15,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 import copy
 import logging
+from pathlib import Path
 
 from omnicell.models.sclambda.networks import *
 from omnicell.models.sclambda.utils import *
@@ -37,7 +38,7 @@ class ModelPredictor(object):
                  validation_frac,
                  large,
                  clip,
-                 name #Useless, just used to make config unpacking easier
+                 activate_MI
                  ):
 
 
@@ -63,6 +64,7 @@ class ModelPredictor(object):
         self.p_dim = p_dim
         self.large = large
         self.clip = clip
+        self.activate_MI = activate_MI
 
 
 
@@ -168,15 +170,22 @@ class ModelPredictor(object):
     def loss_function(self, x, x_hat, p, p_hat, mean_z, log_var_z, s, s_marginal, T):
         reconstruction_loss = 0.5 * torch.mean(torch.sum((x_hat - x)**2, axis=1)) + 0.5 * torch.mean(torch.sum((p_hat - p)**2, axis=1))
         KLD_z = - 0.5 * torch.mean(torch.sum(1 + log_var_z - mean_z**2 - log_var_z.exp(), axis=1))
-        MI_latent = torch.mean(T(mean_z, s.detach())) - torch.log(torch.mean(torch.exp(T(mean_z, s_marginal.detach()))))
-        return reconstruction_loss + KLD_z + self.lambda_MI * MI_latent
+
+        temp = T(mean_z, s_marginal.detach())
+
+        MI_latent = torch.mean(T(mean_z, s.detach())) - torch.logsumexp(temp) - np.log(temp.shape[-1])
+        loss = reconstruction_loss + KLD_z 
+        if self.activate_MI:
+            loss += self.lambda_MI * MI_latent
+        return loss
 
     def loss_recon(self, x, x_hat):
         reconstruction_loss = 0.5 * torch.mean(torch.sum((x_hat - x)**2, axis=1))
         return reconstruction_loss
 
     def loss_MINE(self, mean_z, s, s_marginal, T):
-        MI_latent = torch.mean(T(mean_z, s)) - torch.log(torch.mean(torch.exp(T(mean_z, s_marginal))))
+        temp = T(mean_z, s_marginal.detach())
+        MI_latent = torch.mean(T(mean_z, s.detach())) - torch.logsumexp(temp) - np.log(temp.shape[-1])
         return - MI_latent
 
     def train_real(self):
@@ -210,11 +219,13 @@ class ModelPredictor(object):
                 index_marginal = np.random.choice(np.arange(len(self.train_data)), size=x_hat.shape[0])
                 p_marginal = self.train_data.p[index_marginal]
                 s_marginal = self.Net.Encoder_p(p_marginal)
-                for _ in range(1):
-                    optimizer_MINE.zero_grad()
-                    loss = self.loss_MINE(mean_z, s, s_marginal, T=self.Net.MINE)
-                    loss.backward(retain_graph=True)
-                    optimizer_MINE.step()
+
+                if self.activate_MI:
+                    for _ in range(1):
+                        optimizer_MINE.zero_grad()
+                        loss = self.loss_MINE(mean_z, s, s_marginal, T=self.Net.MINE)
+                        loss.backward(retain_graph=True)
+                        optimizer_MINE.step()
 
                 optimizer.zero_grad()
                 loss = self.loss_function(x, x_hat, p, p_hat, mean_z, log_var_z, s, s_marginal, T=self.Net.MINE)
