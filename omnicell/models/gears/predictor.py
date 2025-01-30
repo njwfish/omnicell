@@ -91,7 +91,9 @@ class GEARSPredictor():
         pert_data = PertData(data_path.resolve()) # specific saved folder
 
         logger.debug(f"Preparing new data process with skip calc de: {self.model_config['skip_calc_de']}")
-        pert_data.new_data_process(dataset_name = "gears", adata = adata, skip_calc_de=self.model_config['skip_calc_de']) # specific dataset name and adata object
+
+        #C.f. Implementation Readme on why 
+        pert_data.new_data_process(dataset_name = "gears", adata = adata, skip_calc_de=True) # specific dataset name and adata object
         
         logger.debug(f"Preparing split with seed")
         pert_data.prepare_split(split = 'no_test', seed = 1) # get data split with seed

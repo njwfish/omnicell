@@ -1,5 +1,4 @@
 name: gears
-skip_calc_de: False
 batch_size: 32
 test_batch_size: 128
 hidden_size: 64

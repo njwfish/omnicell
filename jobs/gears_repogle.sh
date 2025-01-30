@@ -3,7 +3,7 @@
 #SBATCH -n 4
 #SBATCH --mem=250GB
 #SBATCH --gres=gpu:h100:1  # 1 h100 GPU
-#SBATCH -p ou_bcs_normal
+#SBATCH -p ou_bcs_low
 #SBATCH --array=0-1        # 1 ETL x 1 Models x 2 Splits = 2 combinations
 
 hostname

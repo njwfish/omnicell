@@ -288,7 +288,10 @@ def process_directory(dir_path, args, depth, max_depth, min_compute_average_dept
 
         # Once all subdirectories have been processed, average the results
         if depth >= min_compute_average_depth:
-            average_directory(dir_path, args.min_occurence)
+            try:
+                average_directory(dir_path, args.min_occurence)
+            except Exception as e:
+                logger.error(f"Error computing average for directory {dir_path}: {e}")
 
 
 
