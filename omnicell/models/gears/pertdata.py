@@ -17,6 +17,9 @@ from .utils import print_sys, zip_data_download_wrapper, dataverse_download,\
                   filter_pert_in_go, get_genes_from_perts, tar_data_download_wrapper
 
 
+import logging
+logger = logging.getLogger(__name__)
+
 import time
 from contextlib import contextmanager
 
@@ -630,6 +633,7 @@ class PertData:
         """
         print("Creating dataset file...")
         self.dataset_processed = {}
-        for p in tqdm(self.adata.obs['condition'].unique()):
+        for p in self.adata.obs['condition'].unique():
+            logger.debug(f"Creating cell graph dataset for {p}")
             self.dataset_processed[p] = self.create_cell_graph_dataset(self.adata, p)
         print("Done!")

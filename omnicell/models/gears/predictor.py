@@ -90,7 +90,7 @@ class GEARSPredictor():
 
         pert_data = PertData(data_path.resolve()) # specific saved folder
 
-        logger.debug(f"Preparing new data process with skip calc de: {self.model_config['skip_calc_de']}")
+        logger.debug(f"Preparing new data process with skip calc de")
 
         #C.f. Implementation Readme on why 
         pert_data.new_data_process(dataset_name = "gears", adata = adata, skip_calc_de=True) # specific dataset name and adata object
