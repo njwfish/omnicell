@@ -1,11 +1,12 @@
 name: cinemaot_default
 model_type: cinemaot
-pert_key: "perturbation"  
-control: "No stimulation"  
+pert_key: "perturbation"
+control: "No stimulation"
 thres: 0.5
 smoothness: 1e-5
 eps: 1e-3
 solver: "Sinkhorn"
-training_epochs: 1  # Not used
-batch_size: 1000    # Not used 
+preweight_label: "cell_type0528"  # Set to null for CINEMA-OT-W
+training_epochs: 1  
+batch_size: 1000    
 seed: 1234
