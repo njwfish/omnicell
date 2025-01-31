@@ -1,8 +1,8 @@
 import pertpy as pt
 import scanpy as sc
-from omnicell.models.base import BaseModel  # Assuming BaseModel exists
+#from omnicell.models.base import SJIKMSKM  
 
-class CinemaOTModel(BaseModel):    
+class CinemaOTModel():    
     def __init__(self, config, pert_key="perturbation", control="No stimulation", device=None):
         super().__init__(config)
         self.cot = pt.tl.Cinemaot()
