@@ -1,4 +1,4 @@
-# Test script (optional)
+
 import pertpy as pt
 from omnicell.models.cinemaot.predictor import CinemaOTPredictorWrapper
 
