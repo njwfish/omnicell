@@ -1,0 +1,4 @@
+name: cinemaot_etl
+log1p: True
+do_pca: True  
+n_pcs: 50
