@@ -105,7 +105,7 @@ if __name__ == '__main__':
         result_dirs = find_result_dirs(model_dir)
         
         if not result_dirs:
-            print(f"[!] Results for {model_name} not found - skipping")
+            print(f"[X] Results for {model_name} not found - skipping")
             continue
             
         model_metrics = defaultdict(list)
