@@ -16,6 +16,7 @@ dependencies:
   - numpy
   - pot
   - lightning
+  - pertpy
   - pip
   - pip:
     - torchcfm
