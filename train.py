@@ -110,7 +110,14 @@ def get_model(model_name, config_model, loader, pert_embedding, input_dim, devic
         logger.info("SCOT model selected")
         adata_cheat = loader.get_complete_training_dataset()
         model = SCOT(adata_cheat, **config_model)
-
+    #MMB
+    elif "cinemaot" in model_name:
+        from omnicell.models.cinemaot.cinemaot_model import CinemaOTModel
+        logger.info("CINEMA-OT model selected")
+        model = CinemaOTModel(config_model,
+                              pert_key=config_model.get("pert_key", "perturbation"),  # Default to "perturbation"
+                              control=config_model.get("control", "No stimulation"),  # Default control condition
+                              device=device)
     elif "gears" in model_name:
         from omnicell.models.gears.predictor import GEARSPredictor
         logger.info("GEARS model selected")
@@ -199,7 +206,11 @@ def main(*args):
                 yaml.dump(config.get_training_config().to_dict(), f, indent=2, default_flow_style=False)
     else:
         logger.info("Model does not support saving/loading, training from scratch")
-        model.train(adata)
+        if "cinemaot" in config.model_config.name:
+            sc.pp.pca(adata)  # CINEMA-OT requires AnnData with PCA
+            model.train(adata)
+        else:
+            model.train(adata)
         logger.info("Training completed")    
 
     # If we have an evaluation config, we are going to evaluate
@@ -221,7 +232,7 @@ def main(*args):
             logger.debug(f"Making predictions for cell: {cell_id}, pert: {pert_id}")
 
 
-            preds = model.make_predict(ctrl_data, pert_id, cell_id)
+            preds = model.make_predict(ctrl_data, pert_id, cell_id) #might need to do preds.X for CINEMAOT
 
             preds = preds
             control = ctrl_data.X
