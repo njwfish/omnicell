@@ -48,42 +48,31 @@ def process_directory(root_dir, metrics_to_collect):
 def generate_plots(all_data, args):
     sns.set_theme(style="whitegrid")
 
-    # Convert the nested dictionary of results into a DataFrame in long format
+    # 
     plot_rows = []
     for model in args.model_names:
         model_metrics = all_data.get(model, {})
         for metric_key in args.metrics:
             values = model_metrics.get(metric_key, [])
             for v in values:
-                plot_rows.append({'Metric': metric_key, 'Value': v, 'Model': model})
+                plot_rows.append({'Metric': str(metric_key), 'Value': v, 'Model': model})
     
     if not plot_rows:
         print("[!] No data available for plotting")
         return
     
     df = pd.DataFrame(plot_rows)
+
+    plt.figure(figsize=(10, 6))
+
+    # Create boxplots with x-axis as Metric and hue as Model
+    sns.boxplot(x='Metric', y='Value', hue='Model', data=df, palette="husl")
+
+    plt.xlabel('Metric', fontsize=12)
+    plt.ylabel('Metric Value', fontsize=12)
+    plt.xticks(rotation=30)
+    plt.legend(title="Model")
     
-    # Create subplots: one for each metric with its own y-axis scaling
-    n_metrics = len(args.metrics)
-    fig, axes = plt.subplots(1, n_metrics, figsize=(5 * n_metrics, 6), sharex=True)
-
-    if n_metrics == 1:
-        axes = [axes]  # Ensure iterable if there's only one subplot
-
-    for idx, metric_key in enumerate(args.metrics):
-        ax = axes[idx]
-        metric_df = df[df['Metric'] == metric_key]
-        
-        sns.boxplot(x='Metric', y='Value', hue='Model', data=metric_df, ax=ax, palette="husl")
-
-
-        ax.set_title(METRIC_CONFIG.get(metric_key, metric_key), fontsize=12)
-        ax.set_xlabel('Metric')
-        ax.set_ylabel('Metric Value')
-        ax.legend(title="Model")
-        
-    plt.xticks([])
-    plt.tight_layout()
     os.makedirs(args.save_path, exist_ok=True)
     output_path = os.path.join(args.save_path, f"{args.plot_name}.png")
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
