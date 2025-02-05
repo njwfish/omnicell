@@ -1,119 +1,96 @@
-import os, argparse, json, re
+import os, json, argparse
 import matplotlib.pyplot as plt
 import seaborn as sns
-import pandas as pd
 from collections import defaultdict
 
 METRIC_CONFIG = {
-    'R2': {
-        'R2 All Genes': 'all_genes_mean_R2',
-        'R2 Var Genes': 'all_genes_var_R2',
-        'R2 Means Genes': 'all_genes_mean_sub_diff_R2'
-    },
-    'DEG': {
-        'DEG Overlap': 'Jaccard'
-    }
+    'all_genes_mean_R2': 'R2 All Genes',
+    'all_genes_var_R2': 'R2 Var Genes',
+    'all_genes_mean_sub_diff_R2': 'R2 Means Genes',
+    'Jaccard': 'DEG Overlap'
 }
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description='Collect + Display Results')
-    parser.add_argument('--experiments_results', default="/home/boucenec/omnicell/results/repogle_k562_essential_raw/norm_log/", help='Base dir with results')
-    parser.add_argument('--model_names', nargs='+', default=['nn_oracle'], help='Names of models to compare (subdirectories under base directory)')
-    parser.add_argument('--metric', nargs='+', choices=['R2', 'DEG'], default=['R2', 'DEG'], help='Metrics to include in plots')
-    parser.add_argument('--plot_name', default='some_plot', help='Title of plots')
-    parser.add_argument('--save_path', default='plots', help='Directory to save generated plots')
+    parser = argparse.ArgumentParser(description='Generate model comparison box plots')
+    parser.add_argument('--input_paths', nargs='+', required=True,
+                        help='Base directories containing model results')
+    parser.add_argument('--model_names', nargs='+', required=True,
+                        help='Names for models (model name to match the results path)')
+    parser.add_argument('--metrics', nargs='+', default=list(METRIC_CONFIG.keys()),
+                        help=f'Metrics to include (default: {list(METRIC_CONFIG.keys())})')
+    parser.add_argument('--plot_name', default='comparison',
+                        help='Base name for output plot')
+    parser.add_argument('--save_path', default='plots',
+                        help='Directory to save generated plots')
     return parser.parse_args()
 
-def find_result_dirs(model_dir):
-    result_dirs = []
-    for root, _, files in os.walk(model_dir):
-        has_r2 = any(f.startswith('r2_and_mse_') and f.endswith('.json') for f in files)
-        has_deg = any(f.startswith('DEGs_overlaps_') and f.endswith('.json') for f in files)
-        if has_r2 or has_deg:
-            result_dirs.append(root)
-    return result_dirs
-
-def process_gene_files(hash_dir):
+def process_directory(root_dir, metrics_to_collect):
     metrics = defaultdict(list)
-
-    for r2_file in os.listdir(hash_dir):
-        if r2_file.startswith('r2_and_mse_') and r2_file.endswith('.json'):
-            with open(os.path.join(hash_dir, r2_file), 'r') as f:
-                data = json.load(f)
-                for metric in METRIC_CONFIG['R2'].values():
-                    if metric in data:
-                        metrics['R2'].append(data[metric])
-
-    for deg_file in os.listdir(hash_dir):
-        if deg_file.startswith('DEGs_overlaps_') and deg_file.endswith('.json'):
-            with open(os.path.join(hash_dir, deg_file), 'r') as f:
-                data = json.load(f)
-                if 'Jaccard' in data:
-                    metrics['DEG'].append(data['Jaccard'])
+    
+    for dirpath, _, filenames in os.walk(root_dir):
+        for filename in filenames:
+            if not filename.endswith('.json'):
+                continue
+                
+            file_path = os.path.join(dirpath, filename)
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    for metric in metrics_to_collect:
+                        if metric in data:
+                            metrics[metric].append(data[metric])
+            except Exception as e:
+                print(f"[X] Error processing {file_path}: {str(e)}")
     
     return metrics
 
-def generate_plots(data, args):
+def generate_plots(all_data, args):
     sns.set_theme(style="whitegrid")
     plt.figure(figsize=(12, 6))
-  
-    df_list = []
-    for model_name in args.model_names:
-        model_metrics = data.get(model_name, {})
-        for metric_group in args.metric:
-            for metric_label in METRIC_CONFIG[metric_group]:
-                values = model_metrics.get(metric_group, [])
-                for value in values:
-                    df_list.append({
-                        'Model': model_name,
-                        'Metric': metric_label,
-                        'Value': value
-                    })
     
-    if not df_list:
-        print("[X] No data found.")
+    n_metrics = len(args.metrics)
+    if n_metrics == 0:
+        print("[!] No metrics to plot")
         return
 
-    df = pd.DataFrame(df_list)
-    ax = sns.boxplot(x='Metric', y='Value', hue='Model', data=df, palette="husl")
-    ax.set_title(args.plot_name, fontsize=14)
-    ax.set_xlabel('Metric', fontsize=12)
-    ax.set_ylabel('Metric Value', fontsize=12)
-    plt.xticks(rotation=45, ha='right')
-    plt.legend(title='Model')
+    fig, axes = plt.subplots(1, n_metrics, figsize=(5*n_metrics, 6))
+    if n_metrics == 1:
+        axes = [axes]
+
+    for idx, metric_key in enumerate(args.metrics):
+        ax = axes[idx]
+        display_name = str(metric_key)
+        
+        plot_data = []
+        for model in args.model_names:
+            plot_data.append(all_data[model].get(metric_key, []))
+        
+        sns.boxplot(data=plot_data, palette="husl", ax=ax)
+        ax.set_title(display_name, fontsize=12)
+        ax.set_xticklabels(args.model_names, rotation=45)
+        ax.set_xlabel('')
+        ax.set_ylabel('Metric Value' if idx == 0 else '')
+
     plt.tight_layout()
-    
     os.makedirs(args.save_path, exist_ok=True)
     output_path = os.path.join(args.save_path, f"{args.plot_name}.png")
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
-    print(f"[O] Plot saved: {output_path}")
+    print(f"[O] Saved plot to: {output_path}")
 
 if __name__ == '__main__':
     args = parse_arguments()
-    print(f'[!] Reading results through: {args.experiments_results}')
     
-    all_data = defaultdict(dict)
-    
-    for model_name in args.model_names:
-        model_dir = os.path.join(args.experiments_results, model_name)
-        if not os.path.exists(model_dir):
-            print(f"[X] Model {model_dir} not found - skipping")
-            continue
+    if len(args.input_paths) != len(args.model_names):
+        raise ValueError("[X] Number of input paths must match number of model names")
+
+    all_data = {}
+    for model_name, path in zip(args.model_names, args.input_paths):
+        print(f"[!] Processing {model_name} results from: {path}")
+        if not os.path.exists(path):
+            raise FileNotFoundError(f"[X] Directory not found: {path}")
             
-        print(f"[!] Found model to process: {model_name}")
-        result_dirs = find_result_dirs(model_dir)
-        
-        if not result_dirs:
-            print(f"[X] Results for {model_name} not found - skipping")
-            continue
-            
-        model_metrics = defaultdict(list)
-        for dir_path in result_dirs:
-            metrics = process_gene_files(dir_path)
-            for key, values in metrics.items():
-                model_metrics[key].extend(values)
-        
-        all_data[model_name] = model_metrics
+        metrics = process_directory(path, args.metrics)
+        all_data[model_name] = metrics
     
     generate_plots(all_data, args)
