@@ -1,9 +1,10 @@
 import os, json, argparse
 import matplotlib.pyplot as plt
 import seaborn as sns
+import pandas as pd
 from collections import defaultdict
 
-METRIC_CONFIG = {
+METRIC_CONFIG = { #test example only
     'all_genes_mean_R2': 'R2 All Genes',
     'all_genes_var_R2': 'R2 Var Genes',
     'all_genes_mean_sub_diff_R2': 'R2 Means Genes',
@@ -46,30 +47,37 @@ def process_directory(root_dir, metrics_to_collect):
 
 def generate_plots(all_data, args):
     sns.set_theme(style="whitegrid")
-    plt.figure(figsize=(12, 6))
+
+    plot_rows = []
+    for model in args.model_names:
+        model_metrics = all_data.get(model, {})
+        for metric_key in args.metrics:
+            values = model_metrics.get(metric_key, [])
+            for v in values:
+                plot_rows.append({'Metric': metric_key, 'Value': v, 'Model': model})
+    
+    if not plot_rows:
+        print("[!] No data available for plotting")
+        return
+    
+    df = pd.DataFrame(plot_rows)
     
     n_metrics = len(args.metrics)
-    if n_metrics == 0:
-        print("[!] No metrics to plot")
-        return
+    fig, axes = plt.subplots(1, n_metrics, figsize=(5 * n_metrics, 6), sharex=True)
 
-    fig, axes = plt.subplots(1, n_metrics, figsize=(5*n_metrics, 6))
     if n_metrics == 1:
-        axes = [axes]
+        axes = [axes]  # Ensure iterable if there's only one subplot
 
     for idx, metric_key in enumerate(args.metrics):
         ax = axes[idx]
-        display_name = str(metric_key)
+        metric_df = df[df['Metric'] == metric_key]
         
-        plot_data = []
-        for model in args.model_names:
-            plot_data.append(all_data[model].get(metric_key, []))
-        
-        sns.boxplot(data=plot_data, palette="husl", ax=ax)
-        ax.set_title(display_name, fontsize=12)
-        ax.set_xticklabels(args.model_names, rotation=45)
-        ax.set_xlabel('')
-        ax.set_ylabel('Metric Value' if idx == 0 else '')
+        sns.boxplot( x=None, y='Value', hue='Model', data=metric_df, ax=ax, palette="husl") #removed x='Metric'
+
+        ax.set_title(str(metric_key), fontsize=12)
+        ax.set_xlabel('Metric')
+        ax.set_ylabel('Metric Value')
+        ax.legend(title="Model")
 
     plt.tight_layout()
     os.makedirs(args.save_path, exist_ok=True)
