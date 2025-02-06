@@ -40,26 +40,26 @@ class CinemaOTModel:
     def train(self, adata, **kwargs):
         """
         Run the analysis on AnnData object:
-          - Selects the control (e.g., "No stimulation") and experimental (e.g., "IFNb") groups.
+          - Selects the control (e.g., "ctrl") and experimental (e.g., "IFNb") groups.
           - Computes the confounder embedding, OT matrix, and differential expression matrix.
           
         Parameters:
           adata: pre-processed AnnData object.
           kwargs: Optional overrides such as:
-                  - ref_label (default "No stimulation")
+                  - ref_label (default "ctrl")
                   - expr_label (default "IFNb")
                   - use_rep (if using weighted version)
                   
         Returns:
           A dictionary with keys "cf", "ot", and "de".
         """
-        ref_label = kwargs.get("ref_label", "No stimulation")
+        ref_label = kwargs.get("ref_label", "ctrl")
         expr_label = kwargs.get("expr_label", "IFNb")
         
         if self.weighted:
             self.cf, self.ot, self.de, self.weights = cinemaot_weighted(
                 adata,
-                obs_label="perturbation",
+                obs_label="pert",
                 ref_label=ref_label,
                 expr_label=expr_label,
                 use_rep=kwargs.get("use_rep", None),
@@ -73,7 +73,7 @@ class CinemaOTModel:
         else:
             self.cf, self.ot, self.de = cinemaot_unweighted(
                 adata,
-                obs_label="perturbation",
+                obs_label="pert",
                 ref_label=ref_label,
                 expr_label=expr_label,
                 dim=self.dim,
@@ -88,15 +88,15 @@ class CinemaOTModel:
     def predict(self, adata, **kwargs):
         """
         Apply the learned OT mapping to transform new data.
-        Try to transform cells in a condition by applying the OT matrix to reference cells from the "No stimulation" condition.
+        Try to transform cells in a condition by applying the OT matrix to reference cells from the "ctrl" condition.
         """
         if self.cf is None or self.ot is None:
             raise RuntimeError("[X] Model has not been trained. Run train() first.")
         
         adata_new = adata.copy()
         condition = kwargs.get("condition", "IFNb")
-        idx = adata_new.obs["perturbation"] == condition
-        ref_cf = self.cf[adata_new.obs["perturbation"] == "No stimulation", :]
+        idx = adata_new.obs["pert"] == condition
+        ref_cf = self.cf[adata_new.obs["pert"] == "ctrl", :]
         ot_norm = self.ot / np.sum(self.ot, axis=1)[:, None]
         adata_new.obsm["cf_transformed"] = self.cf.copy()
         adata_new.obsm["cf_transformed"][idx, :] = np.matmul(ot_norm, ref_cf)
