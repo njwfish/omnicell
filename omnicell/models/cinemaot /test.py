@@ -6,7 +6,7 @@ adata = pt.dt.cinemaot_example()
 
 config = {
     "pert_key": "perturbation",
-    "control": "No stimulation",
+    "control": "ctrl",
     "thres": 0.5,
     "preweight_label": "cell_type0528"
 }
