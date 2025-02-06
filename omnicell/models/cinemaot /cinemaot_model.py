@@ -1,91 +1,134 @@
-import pertpy as pt
+# Mohcene Maher Bouceneche, Abudayyeh-Gootenberg Laboratory.
+import os
+import pickle
+import numpy as np
 import scanpy as sc
-#from omnicell.models.base import SJIKMSKM  
+import torch
+from cinemaot import cinemaot_unweighted, cinemaot_weighted, synergy, attribution_scatter
+from cinemaot import benchmark  # optional for evaluation routines
+# Optionally, also import functions from utils if you want downstream visualizations
 
-class CinemaOTModel():    
-    def __init__(self, config, pert_key="perturbation", control="No stimulation", device=None):
-        super().__init__(config)
-        self.cot = pt.tl.Cinemaot()
-        self.pert_key = pert_key
-        self.control = control
-        self.device = device  # Not used but kept for interface consistency
-        
-        self.thres = config.get("thres", 0.5)
-        self.smoothness = config.get("smoothness", 1e-5)
+class CinemaOTModel:
+    def __init__(self, config):
+        """
+        Initialize the model using parameters from YAML configuration.
+        Expected configuration parameters:
+          - name: identifier (should be "cinemaot")
+          - mode: "parametric" (or "non_parametric")
+          - dim: number of independent components (e.g., 20)
+          - thres: threshold for confounder selection (e.g., 0.15)
+          - smoothness: smoothness parameter for entropy regularization (e.g., 1e-4)
+          - eps: convergence tolerance for the Sinkhorn-Knopp OT computation (e.g., 1e-3)
+          - preweight_label: an optional column name (e.g., "cell_type0528") for weighting
+          - weighted: boolean flag (if true, use cinemaot_weighted; otherwise, use unweighted)
+        """
+        self.name = config.get("name", "cinemaot")
+        self.mode = config.get("mode", "parametric")
+        self.dim = config.get("dim", 20)
+        self.thres = config.get("thres", 0.15)
+        self.smoothness = config.get("smoothness", 1e-4)
         self.eps = config.get("eps", 1e-3)
-        self.solver = config.get("solver", "Sinkhorn")
         self.preweight_label = config.get("preweight_label", None)
+        self.weighted = config.get("weighted", False)
         
-        self.de = None  # Treatment-effect AnnData
-        self.ad = None  # Subsampled AnnData (for CINEMA-OT-W)
+        self.cf = None   # Confounder embedding (numpy array)
+        self.ot = None   # Optimal transport matrix (numpy array)
+        self.de = None   # Differential expression matrix (as an AnnData object)
+        #store additional outputs(synergy weights) if needed.
 
     def train(self, adata, **kwargs):
-        # run CINEMA-OT causal effect analysis.
-        # PCA (required by CINEMA-OT)
-        if 'X_pca' not in adata.obsm:
-            sc.pp.pca(adata)
+        """
+        Run the analysis on AnnData object:
+          - Selects the control (e.g., "No stimulation") and experimental (e.g., "IFNb") groups.
+          - Computes the confounder embedding, OT matrix, and differential expression matrix.
+          
+        Parameters:
+          adata: pre-processed AnnData object.
+          kwargs: Optional overrides such as:
+                  - ref_label (default "No stimulation")
+                  - expr_label (default "IFNb")
+                  - use_rep (if using weighted version)
+                  
+        Returns:
+          A dictionary with keys "cf", "ot", and "de".
+        """
+        ref_label = kwargs.get("ref_label", "No stimulation")
+        expr_label = kwargs.get("expr_label", "IFNb")
         
-        # causal effect analysis
-        if self.preweight_label:
-            # Supervised mode with cell-type labels
-            self.de = self.cot.causaleffect(
+        if self.weighted:
+            self.cf, self.ot, self.de, self.weights = cinemaot_weighted(
                 adata,
-                pert_key=self.pert_key,
-                control=self.control,
-                return_matching=True,
+                obs_label="perturbation",
+                ref_label=ref_label,
+                expr_label=expr_label,
+                use_rep=kwargs.get("use_rep", None),
+                dim=self.dim,
                 thres=self.thres,
                 smoothness=self.smoothness,
                 eps=self.eps,
-                solver=self.solver,
+                mode=self.mode,
                 preweight_label=self.preweight_label
             )
         else:
-            # Unsupervised CINEMA-OT-W
-            self.ad, self.de = self.cot.causaleffect_weighted(
+            self.cf, self.ot, self.de = cinemaot_unweighted(
                 adata,
-                pert_key=self.pert_key,
-                control=self.control,
-                return_matching=True,
+                obs_label="perturbation",
+                ref_label=ref_label,
+                expr_label=expr_label,
+                dim=self.dim,
                 thres=self.thres,
                 smoothness=self.smoothness,
                 eps=self.eps,
-                solver=self.solver
+                mode=self.mode,
+                preweight_label=self.preweight_label
             )
-        return self.de
+        return {"cf": self.cf, "ot": self.ot, "de": self.de}
 
     def predict(self, adata, **kwargs):
-        #Return treatment-effect matrix (de.X)
-        if self.de is None:
-            raise ValueError("Model not trained. Call .train() first.")
-        return self.de.X 
+        """
+        Apply the learned OT mapping to transform new data.
+        Try to transform cells in a condition by applying the OT matrix to reference cells from the "No stimulation" condition.
+        """
+        if self.cf is None or self.ot is None:
+            raise RuntimeError("[X] Model has not been trained. Run train() first.")
+        
+        adata_new = adata.copy()
+        condition = kwargs.get("condition", "IFNb")
+        idx = adata_new.obs["perturbation"] == condition
+        ref_cf = self.cf[adata_new.obs["perturbation"] == "No stimulation", :]
+        ot_norm = self.ot / np.sum(self.ot, axis=1)[:, None]
+        adata_new.obsm["cf_transformed"] = self.cf.copy()
+        adata_new.obsm["cf_transformed"][idx, :] = np.matmul(ot_norm, ref_cf)
+        return adata_new
 
-    def make_predict(self, ctrl_data, pert_id, cell_id=None):
-        # ctrl_data: Control AnnData (unused here since CINEMA-OT handles pairing)
-        return self.de.X  #or return ctrl_data.X + self.de.X
+    def make_predict(self, ctrl_data, pert_id, cell_id):
+        """just to be used by train.py"""
+        return self.predict(ctrl_data)
 
-    def save(self, path):
-        if self.de is not None:
-            self.de.write(f"{path}/treatment_effect.h5ad")
-        if self.ad is not None:
-            self.ad.write(f"{path}/confounder_data.h5ad")
+    def save(self, filepath):
+        """Save the model state (cf, ot, de, configuration)."""
+        state = {
+            "cf": self.cf,
+            "ot": self.ot,
+            "de": self.de,
+            "config": {
+                "name": self.name,
+                "mode": self.mode,
+                "dim": self.dim,
+                "thres": self.thres,
+                "smoothness": self.smoothness,
+                "eps": self.eps,
+                "preweight_label": self.preweight_label,
+                "weighted": self.weighted,
+            }
+        }
+        with open(filepath, "wb") as f:
+            pickle.dump(state, f)
 
-    def load(self, path):
-        try:
-            self.de = sc.read_h5ad(f"{path}/treatment_effect.h5ad")
-            return True
-        except FileNotFoundError:
-            return False
+    def load(self, filepath):
+        with open(filepath, "rb") as f:
+            state = pickle.load(f)
+        self.cf = state["cf"]
+        self.ot = state["ot"]
+        self.de = state["de"]
 
-    def synergy_effect(self, adata, treatment_A, treatment_B, combo_name):
-        return self.cot.synergy(
-            adata,
-            pert_key=self.pert_key,
-            base=self.control,
-            A=treatment_A,
-            B=treatment_B,
-            AB=combo_name,
-            thres=self.thres,
-            smoothness=self.smoothness,
-            eps=self.eps,
-            solver=self.solver
-        )
