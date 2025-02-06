@@ -1,5 +1,5 @@
 #Mohcene Maher Bouceneche, Abudayyeh-Gootenberg Laboratory.
-#please make sure these libs are installed: cinemaot, scipy, scikit-learn, gseapy, harmonypy
+#please make sure these libs are installed: numpy pandas scanpy scikit-learn scipy statsmodels anndata
 import os
 import pickle
 import numpy as np
