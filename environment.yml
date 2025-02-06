@@ -21,7 +21,9 @@ dependencies:
   - scipy
   - gseapy
   - harmonypy
-  - cinemaot
+  - scikit-learn
+  - statsmodels
+  - anndata
   - pip
   - pip:
     - torchcfm
