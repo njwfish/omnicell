@@ -5,9 +5,9 @@ import pickle
 import numpy as np
 import scanpy as sc
 import torch
-from cinemaot import cinemaot_unweighted, cinemaot_weighted, synergy, attribution_scatter
-from cinemaot import benchmark  # optional for evaluation routines
-# Optionally, also import functions from utils if you want downstream visualizations
+from cinemaotlib.cinemaot import cinemaot_unweighted, cinemaot_weighted, synergy, attribution_scatter
+from cinemaotlib import benchmark  # optional for evaluation routines
+# from cinemaotlib import utils # can also import functions from utils if u want downstream visualizations
 
 class CinemaOTModel:
     def __init__(self, config):
