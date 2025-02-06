@@ -1,4 +1,5 @@
-# Mohcene Maher Bouceneche, Abudayyeh-Gootenberg Laboratory.
+#Mohcene Maher Bouceneche, Abudayyeh-Gootenberg Laboratory.
+#please make sure these libs are installed: cinemaot, scipy, scikit-learn, gseapy, harmonypy
 import os
 import pickle
 import numpy as np
