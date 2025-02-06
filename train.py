@@ -112,12 +112,10 @@ def get_model(model_name, config_model, loader, pert_embedding, input_dim, devic
         model = SCOT(adata_cheat, **config_model)
     #MMB
     elif "cinemaot" in model_name:
-        from omnicell.models.cinemaot.cinemaot_model import CinemaOTModel
+        from omnicell.models.cinemaot_model import CinemaOTModel
         logger.info("CINEMA-OT model selected")
-        model = CinemaOTModel(config_model,
-                              pert_key=config_model.get("pert_key", "perturbation"),  # Default to "perturbation"
-                              control=config_model.get("control", "No stimulation"),  # Default control condition
-                              device=device)
+        model = CinemaOTModel(config_model) 
+        #model = CinemaOTModel(config_model,pert_key=config_model.get("pert_key", "perturbation"), control=config_model.get("control", "No stimulation"),  device=device)
     elif "gears" in model_name:
         from omnicell.models.gears.predictor import GEARSPredictor
         logger.info("GEARS model selected")
