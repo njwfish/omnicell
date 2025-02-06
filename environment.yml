@@ -17,6 +17,11 @@ dependencies:
   - pot
   - lightning
   - pertpy
+  - pickle
+  - scipy
+  - gseapy
+  - harmonypy
+  - cinemaot
   - pip
   - pip:
     - torchcfm
