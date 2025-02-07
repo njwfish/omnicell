@@ -23,14 +23,14 @@ class CinemaOTModel:
           - preweight_label: an optional column name (e.g., "cell_type0528") for weighting
           - weighted: boolean flag (if true, use cinemaot_weighted; otherwise, use unweighted)
         """
-        self.name = config.get("name", "cinemaot")
-        self.mode = config.get("mode", "parametric")
-        self.dim = config.get("dim", 20)
-        self.thres = config.get("thres", 0.15)
-        self.smoothness = config.get("smoothness", 1e-4)
-        self.eps = config.get("eps", 1e-3)
-        self.preweight_label = config.get("preweight_label", None)
-        self.weighted = config.get("weighted", False)
+        self.name = config.name
+        self.mode = config.parameters.get("mode", "parametric")
+        self.dim = config.parameters.get("dim", 20)
+        self.thres = config.parameters.get("thres", 0.15)
+        self.smoothness = config.parameters.get("smoothness", 1e-4)
+        self.eps = config.parameters.get("eps", 1e-3)
+        self.preweight_label = config.parameters.get("preweight_label", None)
+        self.weighted = config.parameters.get("weighted", False)
         
         self.cf = None   # Confounder embedding (numpy array)
         self.ot = None   # Optimal transport matrix (numpy array)
@@ -53,6 +53,11 @@ class CinemaOTModel:
         Returns:
           A dictionary with keys "cf", "ot", and "de".
         """
+        assert "pert" in adata.obs, "Missing perturbation labels in adata.obs"
+        assert adata.obsm['embedding'].shape[1] == self.dim, "Embedding dimension mismatch"
+        
+        if not self.config.etl_config.log1p:
+            logger.warning("CinemaOT expects log-normalized data. Check log1p in ETL config.")
         ref_label = kwargs.get("ref_label", "ctrl")
         expr_label = kwargs.get("expr_label", "IFNb")
         
@@ -90,6 +95,7 @@ class CinemaOTModel:
         Apply the learned OT mapping to transform new data.
         Try to transform cells in a condition by applying the OT matrix to reference cells from the "ctrl" condition.
         """
+        assert adata.shape[0] == self.ot.shape[0], "Cell count mismatch"
         if self.cf is None or self.ot is None:
             raise RuntimeError("[X] Model has not been trained. Run train() first.")
         
@@ -100,7 +106,8 @@ class CinemaOTModel:
         ot_norm = self.ot / np.sum(self.ot, axis=1)[:, None]
         adata_new.obsm["cf_transformed"] = self.cf.copy()
         adata_new.obsm["cf_transformed"][idx, :] = np.matmul(ot_norm, ref_cf)
-        return adata_new
+        adata_new.X = adata_new.obsm["cf_transformed"]
+        return adata_new.X  # or adata_new.obsm["cf_transformed"] #return adata_new
 
     def make_predict(self, ctrl_data, pert_id, cell_id):
         """just to be used by train.py"""
