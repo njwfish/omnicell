@@ -91,7 +91,7 @@ class CellEmbPredictor():
                 
     #Should take care of saving the model under some results/model/checkpoints in 
     #BTW I think hidden dirs fuck with with the cluster, so don't call it .checkpoint
-    def train(self, adata):
+    def train(self, adata, model_savepath: Path):
 
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 

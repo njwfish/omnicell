@@ -14,18 +14,18 @@ from pathlib import Path
 import argparse
 
 def rearrange_results_df(df, metric = 'all'):
-    # Separate lists for each category
-    mean_cols_R2 = [name for name in df.index if name.endswith('mean_R2')]
-    mean_cols_MSE = [name for name in df.index if name.endswith('mean_MSE')]
+    # Separate and sort lists for each category
+    mean_cols_R2 = sorted([name for name in df.index if name.endswith('mean_R2')])
+    mean_cols_MSE = sorted([name for name in df.index if name.endswith('mean_MSE')])
     
-    var_cols_R2 = [name for name in df.index if name.endswith('var_R2')]
-    var_cols_MSE = [name for name in df.index if name.endswith('var_MSE')]
+    var_cols_R2 = sorted([name for name in df.index if name.endswith('var_R2')])
+    var_cols_MSE = sorted([name for name in df.index if name.endswith('var_MSE')])
     
-    corr_cols_R2 = [name for name in df.index if name.endswith('corr_mtx_R2')]
-    corr_cols_MSE = [name for name in df.index if name.endswith('corr_mtx_MSE')]
+    corr_cols_R2 = sorted([name for name in df.index if name.endswith('corr_mtx_R2')])
+    corr_cols_MSE = sorted([name for name in df.index if name.endswith('corr_mtx_MSE')])
     
-    cov_cols_R2 = [name for name in df.index if name.endswith('cov_mtx_R2')]
-    cov_cols_MSE = [name for name in df.index if name.endswith('cov_mtx_MSE')]
+    cov_cols_R2 = sorted([name for name in df.index if name.endswith('cov_mtx_R2')])
+    cov_cols_MSE = sorted([name for name in df.index if name.endswith('cov_mtx_MSE')])
 
     # Combine sorted lists with desired order
     if metric == 'all':
@@ -36,6 +36,7 @@ def rearrange_results_df(df, metric = 'all'):
         new_order = mean_cols_R2 + var_cols_R2 + corr_cols_R2 + cov_cols_R2
     else:
         print(f'METRIC: {metric} IS NOT AN OPTION')
+        
     # Reorder the dataframe based on the new order
     df = df.loc[new_order]
 
@@ -46,7 +47,6 @@ def are_identical(vals):
 
 def df_to_heatmap(df, title, path):
 
-    print(f"DF in heatmap function is {df}")
     # Calculate figure size based on dataframe dimensions
     row_count, col_count = df.shape
     base_size = 4  # Base size for a small dataframe
@@ -183,7 +183,6 @@ def main(*args):
 
         results[column_name] = result_dict
 
-
     #Find the intersection of the keys in all the results files
 
     keys = [set(x.keys()) for x in results.values()]
@@ -209,15 +208,14 @@ def main(*args):
     #Concatenate the dataframes
 
     results_df = pd.concat(results.values(), axis=1)
+        # Sort columns alphanumerically
+    results_df = results_df.sort_index(axis=1)
 
     print(f"Results df before calling heatmap: {results_df}")
-
-    
-   
-        
     #Create a dataframe with all the results
 
     if args.metrics == 'None':
+        results_df = results_df.sort_index()
         df_to_heatmap(results_df, f'{args.plot_name}', args.save_path)
     else:
         results_df = rearrange_results_df(results_df, metric = args.metrics)

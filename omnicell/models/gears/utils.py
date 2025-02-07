@@ -357,10 +357,9 @@ def uncertainty_loss_fct(pred, logvar, y, perts, reg = 0.1, ctrl = None,
     losses = torch.tensor(0.0, requires_grad=True).to(pred.device)
     for p in set(perts):
         if p!= 'ctrl':
-            retain_idx = dict_filter[p]
-            pred_p = pred[np.where(perts==p)[0]][:, retain_idx]
-            y_p = y[np.where(perts==p)[0]][:, retain_idx]
-            logvar_p = logvar[np.where(perts==p)[0]][:, retain_idx]
+            pred_p = pred[np.where(perts==p)[0]]
+            y_p = y[np.where(perts==p)[0]]
+            logvar_p = logvar[np.where(perts==p)[0]]
         else:
             pred_p = pred[np.where(perts==p)[0]]
             y_p = y[np.where(perts==p)[0]]
@@ -373,8 +372,8 @@ def uncertainty_loss_fct(pred, logvar, y, perts, reg = 0.1, ctrl = None,
         # direction loss                 
         if p!= 'ctrl':
             losses += torch.sum(direction_lambda *
-                                (torch.sign(y_p - ctrl[retain_idx]) -
-                                 torch.sign(pred_p - ctrl[retain_idx]))**2)/\
+                                (torch.sign(y_p - ctrl) -
+                                 torch.sign(pred_p - ctrl))**2)/\
                                  pred_p.shape[0]/pred_p.shape[1]
         else:
             losses += torch.sum(direction_lambda *
@@ -409,9 +408,8 @@ def loss_fct(pred, y, perts, ctrl = None, direction_lambda = 1e-3, dict_filter =
         # during training, we remove the all zero genes into calculation of loss.
         # this gives a cleaner direction loss. empirically, the performance stays the same.
         if p!= 'ctrl':
-            retain_idx = dict_filter[p]
-            pred_p = pred[pert_idx][:, retain_idx]
-            y_p = y[pert_idx][:, retain_idx]
+            pred_p = pred[pert_idx]
+            y_p = y[pert_idx]
         else:
             pred_p = pred[pert_idx]
             y_p = y[pert_idx]
@@ -420,8 +418,8 @@ def loss_fct(pred, y, perts, ctrl = None, direction_lambda = 1e-3, dict_filter =
         ## direction loss
         if (p!= 'ctrl'):
             losses = losses + torch.sum(direction_lambda *
-                                (torch.sign(y_p - ctrl[retain_idx]) -
-                                 torch.sign(pred_p - ctrl[retain_idx]))**2)/\
+                                (torch.sign(y_p - ctrl) -
+                                 torch.sign(pred_p - ctrl))**2)/\
                                  pred_p.shape[0]/pred_p.shape[1]
         else:
             losses = losses + torch.sum(direction_lambda * (torch.sign(y_p - ctrl) -

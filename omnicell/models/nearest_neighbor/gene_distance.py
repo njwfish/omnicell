@@ -5,6 +5,7 @@ import pandas as pd
 import torch
 from omnicell.constants import PERT_KEY, CELL_KEY, CONTROL_PERT
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +18,7 @@ class NearestNeighborPredictor():
         self.mean_shift = config['mean_shift']
         #TODO: We can compute means here for some extra perf
 
-    def train(self, adata):
+    def train(self, adata, model_savepath: Path):
         self.train_adata = adata
         self.seen_cell_types = adata.obs[CELL_KEY].unique()
         self.seen_perts = adata.obs[PERT_KEY].unique()

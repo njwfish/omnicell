@@ -9,6 +9,7 @@ import numpy as np
 def fm_collate(
     batch,
     return_noise=False,
+    return_control=False,
     FM=ExactOptimalTransportConditionalFlowMatcher(sigma=0.1),
 ):
     noises = []
@@ -30,15 +31,19 @@ def fm_collate(
             pert,
             return_noise=return_noise,
         )
+    ret = [t, xt, ut]
     if return_noise:
         noises = torch.cat(noises)
-        return t, xt, ut, noises
-    return t, xt, ut
+        ret.append(noises)
+    if return_control:
+        ret.append(control)
+    return ret
 
 
 def cfm_collate(
     batch,
     return_noise=False,
+    return_control=False,
     FM=ExactOptimalTransportConditionalFlowMatcher(sigma=0.1),
 ):
     noises = []
@@ -61,10 +66,13 @@ def cfm_collate(
             target,
             return_noise=return_noise,
         )
+    ret = [t, xt, ut, perturb]
     if return_noise:
         noises = torch.cat(noises)
-        return t, xt, ut, noises
-    return t, xt, ut, perturb
+        ret.append(noises)
+    if return_control:
+        ret.append(control)
+    return ret
 
 
 def ot_collate(

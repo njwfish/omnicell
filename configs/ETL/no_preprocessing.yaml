@@ -1,4 +1,0 @@
-name: no_preprocessing
-HVG: False
-log1p: False 
-count_norm: False

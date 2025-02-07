@@ -1,0 +1,6 @@
+name: log_norm_GenePT_pert_emb
+HVG: False
+log1p: True 
+count_norm: True
+pert_embedding: GenePT
+drop_unmatched_perts: True

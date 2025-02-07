@@ -1,6 +1,0 @@
-name: no_preprocessing
-HVG: False
-log1p: False 
-count_norm: False
-gene_embedding: bioBERT
-drop_unmatched_perts: True

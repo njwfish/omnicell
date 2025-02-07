@@ -74,6 +74,8 @@ clip: False
 
 ### Local Execution
 
+
+#### Scripts
 ```bash
 python train.py \
 --etl_config configs/ETL/your_etl_config.yaml \
@@ -82,6 +84,15 @@ python train.py \
 --model_config configs/models/your_model_config.yaml \
 -l DEBUG
 ```
+
+#### Notebook Use
+
+Define the environment variable `OMNICELL_ROOT` in your `~/.bashrc` file like such: 
+
+```bash
+export OMNICELL_ROOT='/orcd/data/omarabu/001/opitcho/omnicell'```
+```
+
 ### Cluster Execution (SLURM)
 
 The repository includes SLURM job scripts for running experiments on HPC clusters:

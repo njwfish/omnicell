@@ -46,7 +46,7 @@ def generate_evaluation(dir, args):
 
     #TODO: Do we want to restructure the code to make this config handling centralized? --> Yes probably because this will get very brittle very quickly
     #TODO: Core issue --> The code is dependent on the underlying config structure, which is not good.
-    eval_targets = config.get_eval_targets()
+    eval_targets = config.eval_config.evaluation_targets
     
     for (cell, pert) in eval_targets:
 
@@ -60,11 +60,12 @@ def generate_evaluation(dir, args):
             control_fn = f"{prediction_filename(pert, cell)}-control.npz"
 
             r2_and_mse_fn = r2_mse_filename(pert, cell)
-            c_r_fn= c_r_filename(pert, cell)
+            #c_r_fn= c_r_filename(pert, cell)
             DEGs_overlap_fn = DEGs_overlap_filename(pert, cell)
             
-            results_exist = ((r2_and_mse_fn in listdir(dir)) & (c_r_fn in listdir(dir)) & (DEGs_overlap_fn in listdir(dir)))
+            results_exist = ((r2_and_mse_fn in listdir(dir)) & (DEGs_overlap_fn in listdir(dir)))
 
+            logger.debug(f"Checking wheter results already exists for {pert} and {cell} in {dir}: r2_and_mse: {r2_and_mse_fn in listdir(dir)}, DEGs_overlap: {DEGs_overlap_fn in listdir(dir)}")
             preds_exist = pred_fn in listdir(dir) and true_fn in listdir(dir) and control_fn in listdir(dir)
 
             if not preds_exist:
@@ -195,7 +196,7 @@ def average_fold(fold_dir, min_occurences):
     
     config = Config.from_dict(config)
 
-    eval_targets = config.get_eval_targets()
+    eval_targets = config.eval_config.evaluation_targets
 
     degs_dicts  = []
     r2_mse_dicts = []
@@ -288,7 +289,10 @@ def process_directory(dir_path, args, depth, max_depth, min_compute_average_dept
 
         # Once all subdirectories have been processed, average the results
         if depth >= min_compute_average_depth:
-            average_directory(dir_path, args.min_occurence)
+            try:
+                average_directory(dir_path, args.min_occurence)
+            except Exception as e:
+                logger.error(f"Error computing average for directory {dir_path}: {e}")
 
 
 

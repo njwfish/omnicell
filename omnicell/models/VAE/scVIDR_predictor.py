@@ -54,7 +54,7 @@ class ScVIDRPredictor():
 
     #Note this model needs the entire data or sth like that. 
     #The mean operations are computed on the entire dataset.
-    def train(self, adata):
+    def train(self, adata, model_savepath: Path):
         self.cell_ids = adata.obs[CELL_KEY].unique()
         device = self.device
         epochs = self.epochs

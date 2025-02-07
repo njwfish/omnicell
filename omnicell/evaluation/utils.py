@@ -52,41 +52,37 @@ def get_eval(ctrl_adata, true_adata, pred_adata, DEGs, DEG_vals, pval_threshold,
     results_dict =  {}
     
     logger.debug(f"Computing R, R2, and MSE metrics")
+    ctrl_X = to_dense(ctrl_adata.X)
+    true_X = to_dense(true_adata.X)
+    pred_X = to_dense(pred_adata.X)
 
-    ctrl_mean = to_dense(ctrl_adata.X).mean(axis = 0)
+    ctrl_mean = ctrl_X.mean(axis = 0)
 
-    true_mean = to_dense(true_adata.X).mean(axis = 0)
-    true_var = to_dense(true_adata.X).var(axis = 0)
+    true_mean = true_X.mean(axis = 0)
+    true_var = true_X.var(axis = 0)
     
-    pred_mean = to_dense(pred_adata.X).mean(axis = 0)
-    pred_var = to_dense(pred_adata.X).var(axis = 0)
+    pred_mean = pred_X.mean(axis = 0)
+    pred_var = pred_X.var(axis = 0)
     
-    true_corr_mtx = np.corrcoef(to_dense(true_adata.X), rowvar=False).flatten()
-    true_cov_mtx = np.cov(to_dense(true_adata.X), rowvar=False).flatten()
+    true_corr_mtx = np.corrcoef(true_X, rowvar=False).flatten()
+    true_cov_mtx = np.cov(true_X, rowvar=False).flatten()
         
-    pred_corr_mtx = np.corrcoef(to_dense(pred_adata.X), rowvar=False).flatten()
-    pred_cov_mtx = np.cov(to_dense(pred_adata.X), rowvar=False).flatten()
+    pred_corr_mtx = np.corrcoef(pred_X, rowvar=False).flatten()
+    pred_cov_mtx = np.cov(pred_X, rowvar=False).flatten()
 
     true_sub_diff = true_mean - ctrl_mean
     pred_sub_diff = pred_mean - ctrl_mean
 
-    true_diff = true_mean/ctrl_mean
-    pred_diff = pred_mean/ctrl_mean
-
-    true_diff_mask = (np.isnan(true_diff) | np.isinf(true_diff))
-    pred_diff_mask = (np.isnan(pred_diff) | np.isinf(pred_diff))
-    
-    common_mask = true_diff_mask | pred_diff_mask
-    true_fold_diff = np.ma.array(true_diff, mask=common_mask).compressed()
-    pred_fold_diff = np.ma.array(pred_diff, mask=common_mask).compressed()
+    true_diff = np.expm1(true_mean) - np.expm1(ctrl_mean)
+    pred_diff = np.expm1(pred_mean) - np.expm1(ctrl_mean)
 
     results_dict['all_genes_mean_sub_diff_R'] = pearsonr(true_sub_diff, pred_sub_diff)[0]
     results_dict['all_genes_mean_sub_diff_R2'] = pearsonr(true_sub_diff, pred_sub_diff)[0]**2
     results_dict['all_genes_mean_sub_diff_MSE'] = (np.square(true_sub_diff - pred_sub_diff)).mean(axis=0)
 
-    results_dict['all_genes_mean_fold_diff_R'] = pearsonr(true_fold_diff, pred_fold_diff)[0]
-    results_dict['all_genes_mean_fold_diff_R2'] = pearsonr(true_fold_diff, pred_fold_diff)[0]**2
-    results_dict['all_genes_mean_fold_diff_MSE'] = (np.square(true_fold_diff - pred_fold_diff)).mean(axis=0)
+    results_dict['all_genes_mean_fold_diff_R'] = pearsonr(true_diff, pred_diff)[0]
+    results_dict['all_genes_mean_fold_diff_R2'] = pearsonr(true_diff, pred_diff)[0]**2
+    results_dict['all_genes_mean_fold_diff_MSE'] = (np.square(true_diff - pred_diff)).mean(axis=0)
     
     results_dict['all_genes_mean_R'] = pearsonr(true_mean, pred_mean)[0]
     results_dict['all_genes_mean_R2'] = pearsonr(true_mean, pred_mean)[0]**2
@@ -95,17 +91,14 @@ def get_eval(ctrl_adata, true_adata, pred_adata, DEGs, DEG_vals, pval_threshold,
     results_dict['all_genes_var_R'] = pearsonr(true_var, pred_var)[0]
     results_dict['all_genes_var_R2'] = pearsonr(true_var, pred_var)[0]**2
     results_dict['all_genes_var_MSE'] = (np.square(true_var - pred_var)).mean(axis=0)
-   
-    corr_nas = np.logical_or(np.isnan(true_corr_mtx), np.isnan(pred_corr_mtx))
-    cov_nas = np.logical_or(np.isnan(true_cov_mtx), np.isnan(pred_cov_mtx))
 
-    results_dict['all_genes_corr_mtx_R'] = pearsonr(true_corr_mtx[~corr_nas], pred_corr_mtx[~corr_nas])[0]
-    results_dict['all_genes_corr_mtx_R2'] = pearsonr(true_corr_mtx[~corr_nas], pred_corr_mtx[~corr_nas])[0]**2
-    results_dict['all_genes_corr_mtx_MSE'] = (np.square(true_corr_mtx[~corr_nas] - pred_corr_mtx[~corr_nas])).mean(axis=0)
+    results_dict['all_genes_corr_mtx_R'] = pearsonr(true_corr_mtx.flatten(), pred_corr_mtx.flatten())[0]
+    results_dict['all_genes_corr_mtx_R2'] = pearsonr(true_corr_mtx.flatten(), pred_corr_mtx.flatten())[0]**2
+    results_dict['all_genes_corr_mtx_MSE'] = (np.square(true_corr_mtx.flatten() - pred_corr_mtx.flatten())).mean(axis=0)
 
-    results_dict['all_genes_cov_mtx_R'] = pearsonr(true_cov_mtx[~cov_nas], pred_cov_mtx[~cov_nas])[0]
-    results_dict['all_genes_cov_mtx_R2'] = pearsonr(true_cov_mtx[~cov_nas], pred_cov_mtx[~cov_nas])[0]**2
-    results_dict['all_genes_cov_mtx_MSE'] = (np.square(true_cov_mtx[~cov_nas] - pred_cov_mtx[~cov_nas])).mean(axis=0)
+    results_dict['all_genes_cov_mtx_R'] = pearsonr(true_cov_mtx.flatten(), pred_cov_mtx.flatten())[0]
+    results_dict['all_genes_cov_mtx_R2'] = pearsonr(true_cov_mtx.flatten(), pred_cov_mtx.flatten())[0]**2
+    results_dict['all_genes_cov_mtx_MSE'] = (np.square(true_cov_mtx.flatten() - pred_cov_mtx.flatten())).mean(axis=0)
 
     if lfc_threshold:   
         significant_DEGs = DEGs[(DEGs['pvals_adj'] < pval_threshold) & (abs(DEGs) > lfc_threshold)]
@@ -148,53 +141,46 @@ def get_eval(ctrl_adata, true_adata, pred_adata, DEGs, DEG_vals, pval_threshold,
             results_dict[f'Top_{val}_DEGs_cov_mtx_MSE'] = None
         
         else:
-            top_DEGs = significant_DEGs[0:val].index
+            top_DEGs = significant_DEGs[0:val].index.map(int)
 
             logger.debug(f"Top DEGs: {top_DEGs}")
 
 
             #Reshape --> If there is a single gene, the shape is (1,) and we need to reshape it to (1,1)
 
-            ctrl_mean = to_dense(ctrl_adata[:,top_DEGs].X).mean(axis = 0)
-            
-            true_mean = to_dense(true_adata[:,top_DEGs].X).mean(axis = 0)
+            ctrl_mean = to_dense(ctrl_X[:,top_DEGs]).mean(axis = 0)
+            true_mean = to_dense(true_X[:,top_DEGs]).mean(axis = 0)
 
             logger.debug(f"Shape ctrl_adata with top DEGs: {ctrl_adata[:,top_DEGs].X.shape}, shape true_adata with top DEGs: {true_adata[:,top_DEGs].X.shape}")
 
 
-            true_var = to_dense(true_adata[:,top_DEGs].X).var(axis = 0)
-            true_corr_mtx = np.corrcoef(to_dense(true_adata[:,top_DEGs].X), rowvar=False).flatten()
-            true_cov_mtx = np.cov(to_dense(true_adata[:,top_DEGs].X), rowvar=False).flatten()
+            true_var = to_dense(true_X[:,top_DEGs]).var(axis = 0)
+            true_corr_mtx = np.corrcoef(to_dense(true_X[:,top_DEGs]), rowvar=False).flatten()
+            true_cov_mtx = np.cov(to_dense(true_X[:,top_DEGs]), rowvar=False).flatten()
 
-            pred_mean = to_dense(pred_adata[:,top_DEGs].X).mean(axis = 0)
+            pred_mean = to_dense(pred_X[:,top_DEGs]).mean(axis = 0)
             logger.debug(f"Shape of true_mean shape: {true_mean.shape}, ctrl_mean shape: {ctrl_mean.shape}, pred_mean shape: {pred_mean.shape}")
 
-            pred_var = to_dense(pred_adata[:,top_DEGs].X).var(axis = 0)
-            pred_corr_mtx = np.corrcoef(to_dense(pred_adata[:,top_DEGs].X), rowvar=False).flatten()
-            pred_cov_mtx = np.cov(to_dense(pred_adata[:,top_DEGs].X), rowvar=False).flatten()
+            pred_var = to_dense(pred_X[:,top_DEGs]).var(axis = 0)
+            pred_corr_mtx = np.corrcoef(to_dense(pred_X[:,top_DEGs]), rowvar=False).flatten()
+            pred_cov_mtx = np.cov(to_dense(pred_X[:,top_DEGs]), rowvar=False).flatten()
 
             logger.debug(f"Shape of true_var shape: {true_var.shape}, pred_var shape: {pred_var.shape}")
 
             true_sub_diff = true_mean - ctrl_mean
             pred_sub_diff = pred_mean - ctrl_mean
         
-            true_diff = true_mean/ctrl_mean
-            pred_diff = pred_mean/ctrl_mean
-        
-            true_diff_mask = (np.isnan(true_diff) | np.isinf(true_diff))
-            pred_diff_mask = (np.isnan(pred_diff) | np.isinf(pred_diff))
-            
-            common_mask = true_diff_mask | pred_diff_mask
-            true_fold_diff = np.ma.array(true_diff, mask=common_mask).compressed()
-            pred_fold_diff = np.ma.array(pred_diff, mask=common_mask).compressed()
+            # inverse log1p to get sub change
+            true_diff = np.expm1(true_mean) - np.expm1(ctrl_mean)
+            pred_diff = np.expm1(pred_mean) - np.expm1(ctrl_mean)
 
             results_dict[f'Top_{val}_DEGs_sub_diff_R'] = pearsonr(true_sub_diff, pred_sub_diff)[0]
             results_dict[f'Top_{val}_DEGs_sub_diff_R2'] = pearsonr(true_sub_diff, pred_sub_diff)[0]**2
             results_dict[f'Top_{val}_DEGs_sub_diff_MSE'] = (np.square(true_sub_diff - pred_sub_diff)).mean(axis=0)
         
-            results_dict[f'Top_{val}_DEGs_fold_diff_R'] = pearsonr(true_fold_diff, pred_fold_diff)[0]
-            results_dict[f'Top_{val}_DEGs_fold_diff_R2'] = pearsonr(true_fold_diff, pred_fold_diff)[0]**2
-            results_dict[f'Top_{val}_DEGs_fold_diff_MSE'] = (np.square(true_fold_diff - pred_fold_diff)).mean(axis=0)
+            results_dict[f'Top_{val}_DEGs_fold_diff_R'] = pearsonr(true_diff, pred_diff)[0]
+            results_dict[f'Top_{val}_DEGs_fold_diff_R2'] = pearsonr(true_diff, pred_diff)[0]**2
+            results_dict[f'Top_{val}_DEGs_fold_diff_MSE'] = (np.square(true_diff - pred_diff)).mean(axis=0)
     
             results_dict[f'Top_{val}_DEGs_mean_R'] = pearsonr(true_mean, pred_mean)[0]
             results_dict[f'Top_{val}_DEGs_mean_R2'] = pearsonr(true_mean, pred_mean)[0]**2
@@ -203,17 +189,14 @@ def get_eval(ctrl_adata, true_adata, pred_adata, DEGs, DEG_vals, pval_threshold,
             results_dict[f'Top_{val}_DEGs_var_R'] = pearsonr(true_var, pred_var)[0]
             results_dict[f'Top_{val}_DEGs_var_R2'] = pearsonr(true_var, pred_var)[0]**2
             results_dict[f'Top_{val}_DEGs_var_MSE'] = (np.square(true_var - pred_var)).mean(axis=0)
-            
-            corr_nas = np.logical_or(np.isnan(true_corr_mtx), np.isnan(pred_corr_mtx))
-            cov_nas = np.logical_or(np.isnan(true_cov_mtx), np.isnan(pred_cov_mtx))
 
-            results_dict[f'Top_{val}_DEGs_corr_mtx_R'] = pearsonr(true_corr_mtx[~corr_nas], pred_corr_mtx[~corr_nas])[0]
-            results_dict[f'Top_{val}_DEGs_corr_mtx_R2'] = pearsonr(true_corr_mtx[~corr_nas], pred_corr_mtx[~corr_nas])[0]**2
-            results_dict[f'Top_{val}_DEGs_corr_mtx_MSE'] = (np.square(true_corr_mtx[~corr_nas] - pred_corr_mtx[~corr_nas])).mean(axis=0)
+            results_dict[f'Top_{val}_DEGs_corr_mtx_R'] = pearsonr(true_corr_mtx.flatten(), pred_corr_mtx.flatten())[0]
+            results_dict[f'Top_{val}_DEGs_corr_mtx_R2'] = pearsonr(true_corr_mtx.flatten(), pred_corr_mtx.flatten())[0]**2
+            results_dict[f'Top_{val}_DEGs_corr_mtx_MSE'] = (np.square(true_corr_mtx.flatten() - pred_corr_mtx.flatten())).mean(axis=0)
 
-            results_dict[f'Top_{val}_DEGs_cov_mtx_R'] = pearsonr(true_cov_mtx[~cov_nas], pred_cov_mtx[~cov_nas])[0]
-            results_dict[f'Top_{val}_DEGs_cov_mtx_R2'] = pearsonr(true_cov_mtx[~cov_nas], pred_cov_mtx[~cov_nas])[0]**2
-            results_dict[f'Top_{val}_DEGs_cov_mtx_MSE'] = (np.square(true_cov_mtx[~cov_nas] - pred_cov_mtx[~cov_nas])).mean(axis=0)
+            results_dict[f'Top_{val}_DEGs_cov_mtx_R'] = pearsonr(true_cov_mtx.flatten(), pred_cov_mtx.flatten())[0]
+            results_dict[f'Top_{val}_DEGs_cov_mtx_R2'] = pearsonr(true_cov_mtx.flatten(), pred_cov_mtx.flatten())[0]**2
+            results_dict[f'Top_{val}_DEGs_cov_mtx_MSE'] = (np.square(true_cov_mtx.flatten() - pred_cov_mtx.flatten())).mean(axis=0)
 
     return results_dict
 

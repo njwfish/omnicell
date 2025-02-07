@@ -1,0 +1,3 @@
+- Changing `torch.log(torch.mean(torch.exp(x)))` to `torch.logsumexp()` which is much more numerically stable. We remove the constant `-torch.log(n)` which appears in the process
+- Gradient clipping to 50
+- Enabling / Disabling MINE estimator, it is useless apparently: C.F Gokul's comments

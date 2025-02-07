@@ -9,6 +9,7 @@ from typing import Optional, Tuple, Dict
 import pickle
 from torch import pca_lowrank 
 from omnicell.models.metric_fns import distance_metrics
+from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ class NearestNeighborPredictor():
         self.pert_rep = pert_rep
         self.pert_map = pert_map
 
-    def train(self, adata):
+    def train(self, adata, model_savepath: Path):
         """
         Trains the model on the given data.
 

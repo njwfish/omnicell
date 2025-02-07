@@ -6,11 +6,14 @@ sc.settings.verbosity = 0
 from tqdm import tqdm
 import requests
 import os, sys
+import logging
 
 import warnings
 warnings.filterwarnings("ignore")
 
 from .utils import parse_single_pert, parse_combo_pert, parse_any_pert, print_sys
+
+logger = logging.getLogger(__name__)
 
 def rank_genes_groups_by_cov(
     adata,
@@ -59,8 +62,10 @@ def get_DE_genes(adata, skip_calc_de):
     adata.obs.loc[:, 'control'] = adata.obs.condition.apply(lambda x: 0 if len(x.split('+')) == 2 else 1)
     adata.obs.loc[:, 'condition_name'] =  adata.obs.apply(lambda x: '_'.join([x.cell_type, x.condition, x.dose_val]), axis = 1) 
     
+    logger.debug("Setting obs to category")
     adata.obs = adata.obs.astype('category')
     if not skip_calc_de:
+        logger.debug("Calculating DE genes for real")
         rank_genes_groups_by_cov(adata, 
                          groupby='condition_name', 
                          covariate='cell_type', 

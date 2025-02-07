@@ -37,7 +37,7 @@ def evaluate(loader, model, uncertainty, device):
             pred.extend(p.cpu())
             truth.extend(t.cpu())
             
-            # Differentially expressed genes
+            # Differentially expressed genes, meaningless if not using DE genes
             for itr, de_idx in enumerate(batch.de_idx):
                 pred_de.append(p[itr, de_idx])
                 truth_de.append(t[itr, de_idx])

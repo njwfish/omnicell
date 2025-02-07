@@ -17,6 +17,9 @@ from omnicell.constants import DATA_CATALOGUE_PATH
 
 import os
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class DatasetDetails:
@@ -48,11 +51,14 @@ class Catalogue:
         _catalogue = {}
         for fp in os.listdir(DATA_CATALOGUE_PATH):
             file_path = os.path.join(DATA_CATALOGUE_PATH, fp)
+
+            logger.info(f"Loading data catalogue from {file_path}")
             if file_path.endswith(".yaml"):
                 with open(file_path) as f:
                     file_name = os.path.basename(fp)
                     dataset_name = file_name.split(".")[0]
                     _catalogue[dataset_name] = DatasetDetails(**yaml.load(f, Loader=yaml.FullLoader))
+
         return _catalogue
 
 

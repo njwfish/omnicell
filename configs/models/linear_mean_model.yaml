@@ -5,4 +5,3 @@ name: mean_model
 model_type: linear
 pca_pert_embeddings: True
 pca_pert_embeddings_components: 10
-  

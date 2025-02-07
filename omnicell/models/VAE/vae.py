@@ -223,7 +223,7 @@ class VAE():
 
         self.train_params = None
      
-    def train(self, adata):
+    def train(self, adata, model_savepath: Path):
         self.cell_ids = adata.obs[CELL_KEY].unique()
         device = self.device
         epochs = self.epochs

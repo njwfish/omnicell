@@ -15,6 +15,7 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import StepLR
 import copy
 import logging
+from pathlib import Path
 
 from omnicell.models.sclambda.networks import *
 from omnicell.models.sclambda.utils import *
@@ -26,7 +27,7 @@ class ModelPredictor(object):
     def __init__(self, 
                  input_dim,
                  device,
-                 p_dim,
+                 pert_embedding,
                  latent_dim,
                  hidden_dim,
                  training_epochs,
@@ -36,8 +37,7 @@ class ModelPredictor(object):
                  seed,
                  validation_frac,
                  large,
-                 clip,
-                 name #Useless, just used to make config unpacking easier
+                 activate_MI
                  ):
 
 
@@ -51,6 +51,7 @@ class ModelPredictor(object):
             torch.cuda.manual_seed_all(seed)
         torch.backends.cudnn.benchmark = True
 
+        self.pert_embedding = pert_embedding
         self.x_dim = input_dim
         self.latent_dim = latent_dim
         self.hidden_dim = hidden_dim
@@ -60,27 +61,30 @@ class ModelPredictor(object):
         self.eps = eps
         self.validation_frac = validation_frac
         self.adata = None
-        self.p_dim = p_dim
+
+        #Extracting p_dim from the pert_embedding, we just take an element from the dictionary
+        self.p_dim = self.pert_embedding[list(self.pert_embedding.keys())[0]].shape[0]
+
         self.large = large
-        self.clip = clip
+        self.activate_MI = activate_MI
+
+        self.gene_emb = pert_embedding
+
+        self.gene_emb.update({'ctrl': np.zeros(self.p_dim)})
+
+        #Making sure all values are numpy arrays
+        for key in self.gene_emb.keys():
+            self.gene_emb[key] = self.gene_emb[key]
 
 
 
-
-    def train(self, adata: sc.AnnData):
+    def train(self, adata: sc.AnnData, model_savepath: Path):
             
-            gene_emb_temp = adata.varm[GENE_EMBEDDING_KEY]
-            self.p_dim = gene_emb_temp.shape[1]
 
-            self.gene_emb = {}
-            for i, g in enumerate(adata.var_names):
-                self.gene_emb[g] = gene_emb_temp[i]
-
-            self.gene_emb.update({'ctrl': np.zeros(self.p_dim)})
-
+            
 
             #Do the split
-            self.adata = adata.copy()
+            self.adata = adata
             self.gene_embedding_idx = {name: idx for idx, name in enumerate(self.adata.var_names)}
 
             cell_types = self.adata.obs[CELL_KEY].unique()
@@ -92,8 +96,7 @@ class ModelPredictor(object):
 
 
 
-            
-
+    
 
             # compute perturbation embeddings
             logger.info(f"Computing {self.p_dim}-dimensional perturbation embeddings for {self.adata.shape[0]} cells...")
@@ -104,6 +107,8 @@ class ModelPredictor(object):
                 if pert != CONTROL_PERT:
                     self.pert_emb_cells[i] = self.gene_emb[pert]
 
+
+            #Attaching the perturbation embeddings to the adata object --> We only need an embedding pert perturbation, not per gene
             self.adata.obsm['pert_emb'] = self.pert_emb_cells
 
             
@@ -168,15 +173,25 @@ class ModelPredictor(object):
     def loss_function(self, x, x_hat, p, p_hat, mean_z, log_var_z, s, s_marginal, T):
         reconstruction_loss = 0.5 * torch.mean(torch.sum((x_hat - x)**2, axis=1)) + 0.5 * torch.mean(torch.sum((p_hat - p)**2, axis=1))
         KLD_z = - 0.5 * torch.mean(torch.sum(1 + log_var_z - mean_z**2 - log_var_z.exp(), axis=1))
-        MI_latent = torch.mean(T(mean_z, s.detach())) - torch.log(torch.mean(torch.exp(T(mean_z, s_marginal.detach()))))
-        return reconstruction_loss + KLD_z + self.lambda_MI * MI_latent
+
+        temp = T(mean_z, s_marginal.detach())
+
+        # https://github.com/pytorch/pytorch/issues/121725
+        MI_latent = torch.mean(T(mean_z, s.detach())) - torch.logsumexp(temp, dim=tuple(range(temp.dim())))
+        loss = reconstruction_loss + KLD_z 
+        if self.activate_MI:
+            loss += self.lambda_MI * MI_latent
+        return loss
 
     def loss_recon(self, x, x_hat):
         reconstruction_loss = 0.5 * torch.mean(torch.sum((x_hat - x)**2, axis=1))
         return reconstruction_loss
 
     def loss_MINE(self, mean_z, s, s_marginal, T):
-        MI_latent = torch.mean(T(mean_z, s)) - torch.log(torch.mean(torch.exp(T(mean_z, s_marginal))))
+        temp = T(mean_z, s_marginal.detach())
+
+        #https://github.com/pytorch/pytorch/issues/121725
+        MI_latent = torch.mean(T(mean_z, s.detach())) - torch.logsumexp(temp, dim=tuple(range(temp.dim())))
         return - MI_latent
 
     def train_real(self):
@@ -210,31 +225,25 @@ class ModelPredictor(object):
                 index_marginal = np.random.choice(np.arange(len(self.train_data)), size=x_hat.shape[0])
                 p_marginal = self.train_data.p[index_marginal]
                 s_marginal = self.Net.Encoder_p(p_marginal)
-                for _ in range(1):
-                    optimizer_MINE.zero_grad()
-                    loss = self.loss_MINE(mean_z, s, s_marginal, T=self.Net.MINE)
-                    loss.backward(retain_graph=True)
-                    optimizer_MINE.step()
+
+                if self.activate_MI:
+                    for _ in range(1):
+                        optimizer_MINE.zero_grad()
+                        loss = self.loss_MINE(mean_z, s, s_marginal, T=self.Net.MINE)
+                        loss.backward(retain_graph=True)
+                        optimizer_MINE.step()
 
                 optimizer.zero_grad()
                 loss = self.loss_function(x, x_hat, p, p_hat, mean_z, log_var_z, s, s_marginal, T=self.Net.MINE)
                 logger.debug(f"Epoch: {epoch} - Loss: {loss.item()}")
                 loss.backward()
 
-                if len(past_gradient_norms) > 1 and self.clip:
-                    max_gradient_norm = sum(past_gradient_norms[-20:])/len(past_gradient_norms[-20:])
-                    torch.nn.utils.clip_grad_norm_(self.Net.parameters(), max_gradient_norm)
+                
+                torch.nn.utils.clip_grad_value_(self.Net.parameters(), 1)
                 optimizer.step()
 
 
-                total_norm = 0
-                for p in self.Net.parameters():
-                    param_norm = p.grad.detach().data.norm(2)
-                    total_norm += param_norm.item() ** 2
-                total_norm = total_norm ** 0.5
-
-                logger.debug(f"Gradient Norm: {total_norm}")
-                past_gradient_norms.append(total_norm)
+              
 
             scheduler.step()
             scheduler_MINE.step()

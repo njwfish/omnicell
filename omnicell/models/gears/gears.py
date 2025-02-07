@@ -19,6 +19,9 @@ torch.manual_seed(0)
 
 import warnings
 warnings.filterwarnings("ignore")
+import logging 
+logger = logging.getLogger(__name__)
+
 
 class GEARS:
     """
@@ -87,9 +90,11 @@ class GEARS:
             np.mean(self.adata.X[self.adata.obs.condition == 'ctrl'],
                     axis=0)).reshape(-1, ).to(self.device)
         pert_full_id2pert = dict(self.adata.obs[['condition_name', 'condition']].values)
-        self.dict_filter = {pert_full_id2pert[i]: j for i, j in
+
+        self.dict_filter = None
+        """self.dict_filter = {pert_full_id2pert[i]: j for i, j in
                             self.adata.uns['non_zeros_gene_idx'].items() if
-                            i in pert_full_id2pert}
+                            i in pert_full_id2pert}"""
         self.ctrl_adata = self.adata[self.adata.obs['condition'] == 'ctrl']
         
         gene_dict = {g:i for i,g in enumerate(self.gene_list)}
@@ -287,7 +292,7 @@ class GEARS:
 
         """
         if not os.path.exists(path):
-            os.mkdir(path)
+            os.makedirs(path, exist_ok=True)
         
         if self.config is None:
             raise ValueError('No model is initialized...')
@@ -507,6 +512,9 @@ class GEARS:
 
         min_val = np.inf
         print_sys('Start Training...')
+        element = next(iter(train_loader))
+
+        print(f"Dataloader element: {element}")
 
         for epoch in range(epochs):
             self.model.train()
@@ -551,13 +559,13 @@ class GEARS:
             # Print epoch performance
             log = "Epoch {}: Train Overall MSE: {:.4f} " \
                   "Validation Overall MSE: {:.4f}. "
-            print_sys(log.format(epoch + 1, train_metrics['mse'], 
+            logger.debug(log.format(epoch + 1, train_metrics['mse'], 
                              val_metrics['mse']))
             
             # Print epoch performance for DE genes
             log = "Train Top 20 DE MSE: {:.4f} " \
                   "Validation Top 20 DE MSE: {:.4f}. "
-            print_sys(log.format(train_metrics['mse_de'],
+            logger.debug(log.format(train_metrics['mse_de'],
                              val_metrics['mse_de']))
             
             if self.wandb:
@@ -568,8 +576,9 @@ class GEARS:
                                'train_de_' + m: train_metrics[m + '_de'],
                                'val_de_'+m: val_metrics[m + '_de']})
                
-            if val_metrics['mse_de'] < min_val:
-                min_val = val_metrics['mse_de']
+            #Changed validation to use MSE instead of DE MSE so that we can train without precomputing DEGS
+            if val_metrics['mse'] < min_val:
+                min_val = val_metrics['mse']
                 best_model = deepcopy(self.model)
                 
         print_sys("Done!")

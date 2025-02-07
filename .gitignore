@@ -3,8 +3,13 @@ __pycache__
 *.npz
 
 results
-./models/
+/models/
+/lightning_logs/
 
 # Ignore all log files
 output_*
 slurm*
+*.h5ad
+*.pkl
+*.pt
+*.h5

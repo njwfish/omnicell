@@ -13,10 +13,11 @@ gene_embeddings:
 log1p_transformed: false
 path: /orcd/data/omarabu/001/Omnicell_datasets/repogle_k562_essential_raw/K562_essential_raw_singlecell_01.h5ad
 pert_embeddings:
-- MMedllama-3-8B
-- llamaPMC-13B
-- llamaPMC-7B
 - bioBERT
+- MMedllama-3-8B
+- llamaPMC-7B
+- llamaPMC-13B
+- GenePT
 pert_key: gene
 precomputed_DEGs: true
 var_names_key: null

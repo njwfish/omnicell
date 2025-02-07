@@ -1,10 +1,10 @@
 #!/bin/bash
 #SBATCH -t 12:00:00
-#SBATCH -n 4      #4 CPUS
-#SBATCH --mem=512GB
-#SBATCH -p ou_bcs_low
-#SBATCH --array=0-5        # 3 Gene Embeddings x 2 Splits = 6 combinations
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=96GB
 #SBATCH --gres=gpu:h100:1  # 1 h100 GPU
+#SBATCH -p ou_bcs_low
+#SBATCH --array=0-9        # 5 Gene Embeddings x 2 Splits = 10 combinations
 
 hostname
 
@@ -15,12 +15,12 @@ ETL_BASE_DIR="configs/ETL"
 
 # ===== CONFIGURATION =====
 DATASET="repogle_k562_essential_raw"
-SPLIT_BASE_DIR="${CONFIG_BASE_DIR}/${DATASET}/random_splits/rs_accP_k562_ood_ss:ns_20_2_most_pert_0.1"
-MODEL_CONFIG="${CONFIG_BASE_DIR}/models/sclambda_normal.yaml"
-MODEL_NAME="sclambda_normal"
+SPLIT_BASE_DIR="${CONFIG_BASE_DIR}/splits/${DATASET}/random_splits/rs_accP_k562_ood_ss:ns_20_2_most_pert_0.1"
+MODEL_CONFIG="${CONFIG_BASE_DIR}/models/flow.yaml"
+MODEL_NAME="flow"
 
 # Define configs and splits
-ETL_CONFIGS=("HVG_log_norm_llamaPMC8B" "HVG_log_norm_llamaPMC13B" "HVG_log_norm_MMedllama3_8B")
+ETL_CONFIGS=("log_norm_BioBERT_pert_emb" "log_norm_GenePT_pert_emb" "log_norm_llamaPMC7B_pert_emb" "log_norm_llamaPMC13B_pert_emb" "log_norm_MMedllama3_8B_pert_emb")
 SPLITS=(0 1)
 
 # Calculate indices
@@ -43,10 +43,12 @@ python train.py \
     --datasplit_config ${SPLIT_BASE_DIR}/${SPLIT_DIR}/split_config.yaml \
     --eval_config ${SPLIT_BASE_DIR}/${SPLIT_DIR}/eval_config.yaml \
     --model_config ${MODEL_CONFIG} \
+    --slurm_id ${SLURM_ARRAY_JOB_ID} \
+    --slurm_array_task_id ${SLURM_ARRAY_TASK_ID} \
     -l DEBUG
 
 # Generate evaluations
 python generate_evaluations.py \
     --root_dir ./results/${DATASET}/${ETL}/${MODEL}
-    
+
 echo "All jobs finished for ${SPLIT_DIR}"

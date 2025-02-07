@@ -41,9 +41,7 @@ class Encoder(nn.Module):
             self.layers = nn.Sequential(
                 nn.Linear(input_dim, hidden_dim*8),
                 nn.LeakyReLU(0.2),
-                nn.Linear(hidden_dim*8, hidden_dim*4),
-                nn.LeakyReLU(0.2),
-                nn.Linear(hidden_dim*4, hidden_dim*2),
+                nn.Linear(hidden_dim*8, hidden_dim*2),
                 nn.LeakyReLU(0.2),
                 nn.Linear(hidden_dim*2, hidden_dim)
 
@@ -76,9 +74,7 @@ class Decoder(nn.Module):
             self.layers = nn.Sequential(
                 nn.Linear(latent_dim, hidden_dim*2),
                 nn.LeakyReLU(0.2),
-                nn.Linear(hidden_dim*2, hidden_dim*4),
-                nn.LeakyReLU(0.2),
-                nn.Linear(hidden_dim*4, hidden_dim*8),
+                nn.Linear(hidden_dim*2, hidden_dim*8),
                 nn.LeakyReLU(0.2),
                 nn.Linear(hidden_dim*8, output_dim)
             )

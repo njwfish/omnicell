@@ -1,0 +1,6 @@
+name: log_norm_llamaPMC7B_pert_emb
+HVG: False
+log1p: True 
+count_norm: True
+pert_embedding: llamaPMC-7B
+drop_unmatched_perts: True

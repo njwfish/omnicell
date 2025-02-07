@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 random.seed(42)
 
-def get_model(model_name, config_model, loader, pert_rep_map, input_dim, device, pert_ids, pert_emb_dim):
+def get_model(model_name, config_model, loader, pert_embedding, input_dim, device, pert_ids):
     
-    if pert_rep_map is not None:
-        pert_keys = list(pert_rep_map.keys())
-        pert_rep = np.array([pert_rep_map[k] for k in pert_keys])
+    if pert_embedding is not None:
+        pert_keys = list(pert_embedding.keys())
+        pert_rep = np.array([pert_embedding[k] for k in pert_keys])
         pert_map = {k: i for i, k in enumerate(pert_keys)}
     else:
         pert_rep = None
@@ -86,12 +86,38 @@ def get_model(model_name, config_model, loader, pert_rep_map, input_dim, device,
     elif "sclambda" in model_name:
         from omnicell.models.sclambda.model import ModelPredictor
         logger.info("SCLambda model selected")
-        model = ModelPredictor(input_dim, device, pert_emb_dim, **config_model)
+        model = ModelPredictor(input_dim, device, pert_embedding, **config_model)
 
     elif "mean_model" in model_name:
         from omnicell.models.mean_models.model import MeanPredictor
         logger.info("Mean model selected")
-        model = MeanPredictor(config_model, pert_rep_map)
+        model = MeanPredictor(config_model, pert_embedding)
+        
+    elif "control_predictor" in model_name:
+        from omnicell.models.dummy_predictors.control_predictor import ControlPredictor
+        logger.info("Control model selected")
+        adata_cheat = loader.get_complete_training_dataset()
+        model = ControlPredictor(adata_cheat)
+    
+    elif "proportional_scot" in model_name:
+        from omnicell.models.scot.proportional import ProportionalSCOT
+        logger.info("Proportional SCOT model selected")
+        adata_cheat = loader.get_complete_training_dataset()
+        model = ProportionalSCOT(adata_cheat)
+
+    elif "scot" in model_name:
+        from omnicell.models.scot.scot import SCOT
+        logger.info("SCOT model selected")
+        adata_cheat = loader.get_complete_training_dataset()
+        model = SCOT(adata_cheat, **config_model)
+    elif "cinemaot" in model_name:
+        from omnicell.models.cinemaot.cinemaot import CinemaOTModel
+        logger.info("CINEMA-OT model selected")
+        model = CinemaOTModel(config_model) 
+    elif "gears" in model_name:
+        from omnicell.models.gears.predictor import GEARSPredictor
+        logger.info("GEARS model selected")
+        model = GEARSPredictor(device, config_model)
         
     else:
         raise ValueError(f'Unknown model name {model_name}')
@@ -102,12 +128,15 @@ def main(*args):
     print("Running main")
     parser = argparse.ArgumentParser(description='Analysis settings.')
 
+
     parser.add_argument('--datasplit_config', type=str, default=None, help='Path to yaml config of the datasplit.')
+    parser.add_argument('--embedding_config', type=str, default=None, help='Path to yaml config file of the embeddings.')
     parser.add_argument('--etl_config', type=str, default=None, help='Path to yaml config file of the etl process.')
     parser.add_argument('--model_config', type=str, default=None, help='Path to yaml config file of the model.')
     parser.add_argument('--eval_config', type=str, default=None, help='Path to yaml config file of the evaluations, if none provided the model will only be trained.')
     parser.add_argument('--test_mode', action='store_true', default=False, help='Run in test mode, datasetsize will be capped at 10000')
     parser.add_argument('--slurm_id', type=int, default=1, help='Slurm id for the job, useful for arrays')
+    parser.add_argument('--slurm_array_task_id', type=int, default=1, help='Slurm array task id, useful for arrays')
     parser.add_argument('-l', '--log', dest='loglevel', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], help="Set the logging level (default: %(default)s)", default='INFO')
 
     args = parser.parse_args()
@@ -115,33 +144,42 @@ def main(*args):
     now = datetime.datetime.now()
     now = now.strftime("%Y-%m-%d_%H:%M:%S")
 
-    config = Config.from_yamls(args.model_config, args.etl_config, args.datasplit_config, args.eval_config)
+    config = Config.from_yamls(model_yaml = args.model_config,
+                               etl_yaml   = args.etl_config, 
+                               datasplit_yaml = args.datasplit_config,
+                               embed_yaml = args.embedding_config,
+                               eval_yaml  = args.eval_config)
+
+    logfile_name = f'output_{args.slurm_id}_{args.slurm_array_task_id}_{config.model_config.name}_{config.etl_config.name}_{config.datasplit_config.name}.log'
 
     logging.basicConfig(
-        filename=f'output_{args.slurm_id}_{config.get_model_name()}_{config.get_datasplit_config_name()}.log', 
+        filename=logfile_name, 
         filemode= 'w', level=args.loglevel, format='%(asctime)s - %(levelname)s - %(message)s'
     )
     
     #This is polluting the output
     logging.getLogger('numba').setLevel(logging.CRITICAL)
+    logging.getLogger('pytorch_lightning').setLevel(logging.CRITICAL)
     
     logger.info("Application started")
 
     loader = DataLoader(config)
     
-    adata, pert_rep_map = loader.get_training_data()
+    adata, pert_embedding = loader.get_training_data()
         
     input_dim = adata.obsm['embedding'].shape[1]
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     pert_ids = adata.obs[PERT_KEY].unique()
+
     gene_emb_dim = adata.varm[GENE_EMBEDDING_KEY].shape[1] if GENE_EMBEDDING_KEY in adata.varm else None
 
     logger.info(f"Data loaded, # of cells: {adata.shape[0]}, # of features: {input_dim} # of perts: {len(pert_ids)}")
+    logger.debug(f"Number of control cells {len(adata[adata.obs[PERT_KEY] == CONTROL_PERT])}")
     logger.info(f"Running experiment on {device}")
 
     logger.debug(f"Training data loaded, perts are: {adata.obs[PERT_KEY].unique()}")
 
-    model = get_model(config.get_model_name(), config.model_config, loader, pert_rep_map, input_dim, device, pert_ids, gene_emb_dim)
+    model = get_model(config.model_config.name, config.model_config.parameters, loader, pert_embedding, input_dim, device, pert_ids)
 
     model_savepath = f"{config.get_train_path()}/training"
 
@@ -164,7 +202,11 @@ def main(*args):
                 yaml.dump(config.get_training_config().to_dict(), f, indent=2, default_flow_style=False)
     else:
         logger.info("Model does not support saving/loading, training from scratch")
-        model.train(adata)
+        if "cinemaot" in config.model_config.name:
+            sc.pp.pca(adata)  # CINEMA-OT requires AnnData with PCA
+            model.train(adata)
+        else:
+            model.train(adata)
         logger.info("Training completed")    
 
     # If we have an evaluation config, we are going to evaluate
@@ -186,11 +228,24 @@ def main(*args):
             logger.debug(f"Making predictions for cell: {cell_id}, pert: {pert_id}")
 
 
-            preds = model.make_predict(ctrl_data, pert_id, cell_id)
+            preds = model.make_predict(ctrl_data, pert_id, cell_id) #might need to do preds.X for CINEMAOT
+
+            preds = preds
+            control = ctrl_data.X
+            ground_truth = gt_data.X
+
+            
+            #No log1p in the config --> we need to log normalize the results before saving them for evals to work
+            if not config.etl_config.log1p:
+                preds = np.log1p(preds)
+                control = np.log1p(control)
+                ground_truth = np.log1p(ground_truth)
          
             preds = to_coo(preds)
             control  = to_coo(ctrl_data.X)
             ground_truth = to_coo(gt_data.X)
+
+
 
             #TODO: We only need to save one control file per cell, if we have several perts we can reuse the same control file
             scipy.sparse.save_npz(f"{results_path}/{prediction_filename(pert_id, cell_id)}-preds", preds)
@@ -198,6 +253,9 @@ def main(*args):
             scipy.sparse.save_npz(f"{results_path}/{prediction_filename(pert_id, cell_id)}-ground_truth", ground_truth)
 
         logger.info("Evaluation completed")
+        logger.info("Saving logfile to results folder")
+
+        os.rename(logfile_name, f"{results_path}/{logfile_name}")
 
 
 if __name__ == '__main__':

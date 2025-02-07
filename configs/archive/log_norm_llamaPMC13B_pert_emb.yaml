@@ -1,0 +1,6 @@
+name: log_norm_llamaPMC13B_pert_emb
+log1p: True 
+count_norm: True
+HVG: False
+pert_embedding: llamaPMC-13B
+drop_unmatched_perts: True

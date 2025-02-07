@@ -1,5 +1,9 @@
 name: omnicell
+channel_priority: strict
 channels:
+  - pytorch
+  - nvidia
+  - pyg
   - conda-forge
 dependencies:
   - python=3.9
@@ -12,6 +16,15 @@ dependencies:
   - numpy
   - pot
   - lightning
+  - pertpy
+  - pickle
+  - scipy
+  - gseapy
+  - harmonypy
+  - scikit-learn
+  - statsmodels
+  - anndata
+  - plotly
   - pip
   - pip:
     - torchcfm

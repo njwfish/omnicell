@@ -17,6 +17,7 @@ from omnicell.data.loader import DataLoader, DatasetDetails
 import torch 
 from transformers import AutoTokenizer, AutoModel
 import transformers
+import os
 import numpy as np
 from transformers import AutoTokenizer, AutoModelForCausalLM
 print(torch.cuda.is_available())
@@ -28,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 def main():
 
-    parser = argparse.ArgumentParser(description='Generate static embedding')
+    parser = argparse.ArgumentParser(description='Generate llm embeddings for gene')
 
     parser.add_argument('--dataset_name', type=str, help='Name of the dataset')
 
@@ -42,7 +43,9 @@ def main():
     ds_details = Catalogue.get_dataset_details(args.dataset_name)
 
     if args.model_name in ds_details.gene_embeddings:
-        logger.info(f"Embedding {args.model_name} already exists for dataset {args.dataset_name} - Terminating")
+
+        print(f"Embedding {args.model_name} already exists for dataset {args.dataset_name} - Terminating")
+        print(f"Available embeddings: {ds_details.gene_embeddings}")
         return
 
     assert torch.cuda.is_available(), "CUDA not available"
@@ -102,16 +105,20 @@ def main():
     embeddings = torch.stack(embeddings)
 
     print(f"Embeddings shape: {embeddings.shape}")
-    
 
-    torch.save(embeddings, f"{ds_details.folder_path}/{args.model_name}.pt")
+    save_path_gene_emb = f"{ds_details.folder_path}/gene_embeddings/"
+
+    os.makedirs(save_path_gene_emb, exist_ok=True)
+    
+    
+    torch.save({"embedding": embeddings, "gene_names" : list(gene_names)},f"{save_path_gene_emb}/{args.model_name}.pt")
 
 
 
     #Register the new embedding in the catalogue, This modifies the underlying yaml file
     Catalogue.register_new_gene_embedding(args.dataset_name, args.model_name)
 
-    print("Embedding generated and saved successfully")
+    print("Gene embedding generated and saved successfully")
 
 
 

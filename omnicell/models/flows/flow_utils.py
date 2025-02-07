@@ -37,6 +37,7 @@ def compute_conditional_flow(model, control, pert_ids, pert_mat, batch_size=100,
             control_batch = control[batch_size*i:min(batch_size*(i+1), n_samples)]
             pert_batch = pert_mat[pert_ids][batch_size*i:min(batch_size*(i+1), n_samples)]# [:control_batch.shape[0]]
             model.cond = torch.from_numpy(pert_batch).to(device)
+            
             inp = torch.from_numpy(control_batch).float()
             inp = inp.to(device)
             outp = node.trajectory(

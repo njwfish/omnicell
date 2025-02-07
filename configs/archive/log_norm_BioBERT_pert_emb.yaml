@@ -1,0 +1,6 @@
+name: log_norm_BioBERT_gene_emb
+log1p: True
+HVG: False 
+count_norm: True
+pert_embedding: bioBERT
+drop_unmatched_perts: True

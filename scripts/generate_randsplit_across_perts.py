@@ -80,7 +80,7 @@ def main():
     
 
 
-    splits_path = f"configs/{args.dataset}/random_splits/{split_name}"
+    splits_path = f"configs/splits/{args.dataset}/random_splits/{split_name}"
 
 
 

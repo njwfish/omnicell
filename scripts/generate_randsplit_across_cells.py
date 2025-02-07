@@ -59,7 +59,7 @@ def main():
 
 
 
-    path = f"configs/{args.dataset}/random_splits/acrossC_{args.split_mode}_ss:{args.split_size}"
+    path = f"configs/splits/{args.dataset}/random_splits/acrossC_{args.split_mode}_ss:{args.split_size}"
 
 
 

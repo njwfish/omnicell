@@ -2,7 +2,7 @@ import scanpy as sc
 from typing import Optional, List, Tuple
 from dataclasses import dataclass, field
 from omnicell.config.config import Config
-from omnicell.constants import PERT_KEY, CELL_KEY, CONTROL_PERT
+from omnicell.constants import PERT_KEY, CELL_KEY, CONTROL_PERT, PERT_EMBEDDING_KEY
 from omnicell.data.catalogue import DatasetDetails, Catalogue
 import torch
 import logging
@@ -65,22 +65,27 @@ Bullet points are sorted by increasing difficulty
 #TODO: Want to include generic dataset caching, we might starting having many datasets involved in training, not just one
 
 def get_identity_features(adata):
-    perts = np.unique(adata.obs[PERT_KEY])
-    # one hot encode set perts
-    pert_rep = pd.get_dummies(perts).set_index(perts).astype(np.float32)
-    return {pert: pert_rep[pert].values for pert in perts}
+    perts = [p for p in np.unique(adata.obs[PERT_KEY]) if p != CONTROL_PERT]
+    n_perts = len(perts)
+    
+    # Create identity matrix instead of using get_dummies
+    identity_matrix = np.eye(n_perts, dtype=np.float32)
+    
+    # Create dictionary mapping perturbations to one-hot vectors
+    return {pert: identity_matrix[i] for i, pert in enumerate(perts)}
 
 
 class DataLoader:
     def __init__(self, config: Config):
         self.config = config
-        self.training_dataset_details: DatasetDetails = Catalogue.get_dataset_details(config.get_training_dataset_name())
+        self.training_dataset_details: DatasetDetails = Catalogue.get_dataset_details(config.datasplit_config.dataset)
 
         logger.debug(f"Training dataset details: {self.training_dataset_details}")
 
-        self.pert_embedding_name: Optional[str] = config.get_pert_embedding_name()
+        self.pert_embedding_name: Optional[str] = config.embedding_config.pert_embedding if config.embedding_config is not None else None
+        self.gene_embedding_name: Optional[str] = config.embedding_config.gene_embedding if config.embedding_config is not None else None
+        self.metric_space: Optional[str] = config.embedding_config.metric_space if config.embedding_config is not None else None
 
-        self.gene_embedding_name: Optional[str] = config.get_gene_embedding_name()
         
         #TODO: Handle
         self.pert_embedding_details: Optional[dict] = None
@@ -97,7 +102,7 @@ class DataLoader:
     def preprocess_data(self, adata: sc.AnnData, training: bool) -> sc.AnnData:
 
         dataset_details = self.training_dataset_details if training else self.eval_dataset_details
-        dataset_name = self.config.get_training_dataset_name() if training else self.config.get_eval_dataset_name()
+        dataset_name = self.config.datasplit_config.dataset if training else self.config.eval_config.dataset
         # Standardize column names and key values
         condition_key = dataset_details.pert_key
         cell_key = dataset_details.cell_key if training else self.eval_dataset_details.cell_key
@@ -114,23 +119,60 @@ class DataLoader:
             if self.gene_embedding_name not in dataset_details.gene_embeddings:
                 raise ValueError(f"Gene Embedding {self.gene_embedding_name} is not found in gene embeddings available for dataset {dataset_name}")
             else:
-                embedding = torch.load(f"{dataset_details.folder_path}/{self.gene_embedding_name}.pt")
-                gene_rep_map = {embedding["gene_names"][i]: embedding["repr"][i] for i in range(len(embedding["repr"]))}
-                gene_rep = np.array([gene_rep_map[gene] for gene in adata.var_names])
+                embeddings_and_gene_names = torch.load(f"{dataset_details.folder_path}/gene_embeddings/{self.gene_embedding_name}.pt")
+                embedding = embeddings_and_gene_names["embedding"]
+                
+                gene_rep = np.array(embedding)
                 adata.varm["gene_embedding"] = gene_rep
 
 
+        #Getting the per embedding if it is specified
+        if self.pert_embedding_name is not None:
+            if self.pert_embedding_name not in self.training_dataset_details.pert_embeddings:
+                raise ValueError(f"Perturbation embedding {self.pert_embedding_name} not found in embeddings available for dataset {self.training_dataset_details.name}")
+            else:
+                logger.info(f"Loading perturbation embedding from {self.training_dataset_details.folder_path}/{self.pert_embedding_name}.pt")
+                pert_embeddings_and_name = torch.load(f"{self.training_dataset_details.folder_path}/pert_embeddings/{self.pert_embedding_name}.pt")
+                embeddings = pert_embeddings_and_name["embedding"]
+                pert_names = pert_embeddings_and_name["pert_names"]
+                pert_embedding = {pert_names[i]: embeddings[i] for i in range(len(embeddings))}
+
+                adata.uns[PERT_EMBEDDING_KEY] = pert_embedding
+
+        else:
+            logger.info("Using identity features for perturbations")
+            pert_embedding = get_identity_features(adata)
+            adata.uns[PERT_EMBEDDING_KEY] = pert_embedding
+
+
         #Getting HVG genes
-        if not dataset_details.HVG and self.config.get_HVG():
+        if not dataset_details.HVG and self.config.etl_config.HVG:
             logger.info(f"Filtering HVG to top 2000 genes of {adata.shape[1]}")
             sc.pp.highly_variable_genes(adata, n_top_genes=2000, flavor='seurat_v3')
             adata = adata[:, adata.var.highly_variable]
 
-            #TODO: Make this filtering apply only for datasets of genetic perturbation
-            #We remove observations perturbed with a gene whuch is not HVG / CONTROL
-        if self.config.get_drop_unmatched_perts():
+        #TODO: Make this filtering apply only for datasets of genetic perturbation
+        #We remove observations perturbed with a gene whuch is not in the columns of the dataset
+        #We also remove perturbations that do not have any embedding
+        if self.config.etl_config.drop_unmatched_perts:
             logger.info("Removing observations with perturbations not in the dataset as a column")
+
+            number_perts_before = len(adata.obs[PERT_KEY].unique())
             adata = adata[((adata.obs[PERT_KEY] == CONTROL_PERT) | adata.obs[PERT_KEY].isin(adata.var_names))]
+            number_perts_after_column_matching = len(adata.obs[PERT_KEY].unique())
+
+            pert_embedding = adata.uns[PERT_EMBEDDING_KEY]
+            perts_with_embedding = set(pert_embedding.keys())
+
+
+
+            adata = adata[(adata.obs[PERT_KEY].isin(perts_with_embedding)) | (adata.obs[PERT_KEY] == CONTROL_PERT)]
+            number_perts_after_embedding_matching = len(adata.obs[PERT_KEY].unique())
+
+            logger.info(f"Removed {number_perts_before - number_perts_after_column_matching} perturbations that were not in the dataset columns and {number_perts_after_column_matching - number_perts_after_embedding_matching} perturbations that did not have an embedding for a total of {number_perts_before - number_perts_after_embedding_matching} perturbations removed out of an initial {number_perts_before} perturbations")
+        
+
+
 
         
         adata.obsm["embedding"] = adata.X.toarray().astype('float32')
@@ -139,22 +181,21 @@ class DataLoader:
             adata.var_names = adata.var[dataset_details.var_names_key]
 
         # Apply normalization and log1p if needed
-        if self.config.get_apply_normalization() & (not dataset_details.count_normalized):
+        if self.config.etl_config.count_norm & (not dataset_details.count_normalized):
             sc.pp.normalize_total(adata, target_sum=10_000)
-        elif ((not self.config.get_apply_normalization()) & dataset_details.count_normalized):
+        elif ((not self.config.etl_config.count_norm) & dataset_details.count_normalized):
             raise ValueError("Specified dataset is count normalized, but normalization is turned off in the config")
         
-        if self.config.get_apply_log1p() & (not dataset_details.log1p_transformed):
+        if self.config.etl_config.log1p & (not dataset_details.log1p_transformed):
             sc.pp.log1p(adata)
-        elif (not self.config.get_apply_log1p()) & dataset_details.log1p_transformed:
+        elif (not self.config.etl_config.log1p) & dataset_details.log1p_transformed:
             raise ValueError("Specified dataset is log1p transformed, but log1p transformation is turned off in the config")
 
-
-        if self.config.get_metric_space() is not None:
-            if self.config.get_metric_space() in dataset_details.metric_spaces:
-                adata.obsm["metric_space"] = adata.obsm[self.config.get_metric_space()]
+        if self.metric_space is not None:
+            if self.metric_space in dataset_details.metric_spaces:
+                adata.obsm["metric_space"] = adata.obsm[self.metric_space]
             else:
-                raise ValueError(f"Metric space {self.config.get_metric_space()} not found in metric spaces available for dataset {dataset_details.name}")
+                raise ValueError(f"Metric space {self.config.embedding_config.metric_space} not found in metric spaces available for dataset {dataset_details.name}")
 
         if dataset_details.precomputed_DEGs:
             DEGs = json.load(open(f"{dataset_details.folder_path}/DEGs.json"))
@@ -168,10 +209,11 @@ class DataLoader:
         If an pert embedding is specified then it is also returned
         """
 
-        # Checking if we have already a cached version of the training data
+        # Checking if we have already a cached version of the preprocessed training data
         if self.complete_training_adata is None:
             logger.info(f"Loading training data at path: {self.training_dataset_details.path}")
-            adata = sc.read(self.training_dataset_details.path)
+            with open(self.training_dataset_details.path, 'rb') as f:
+                adata = sc.read_h5ad(f)
 
             logger.info(f"Loaded unpreprocessed data, # of data points: {len(adata)}, # of genes: {len(adata.var)}.")
 
@@ -181,22 +223,12 @@ class DataLoader:
             self.complete_training_adata = adata
             logger.debug(f"Loaded complete data, # of data points: {len(adata)}, # of genes: {len(adata.var)}, # of conditions: {len(adata.obs[PERT_KEY].unique())}")
 
-        #Getting the per embedding if it is specified
-        if self.pert_embedding_name is not None:
-            if self.pert_embedding_name not in self.training_dataset_details.pert_embeddings:
-                raise ValueError(f"Perturbation embedding {self.pert_embedding_name} not found in embeddings available for dataset {self.training_dataset_details.name}")
-            else:
-                logger.info(f"Loading perturbation embedding from {self.training_dataset_details.folder_path}/{self.pert_embedding_name}.pt")
-                pert_embedding = torch.load(f"{self.training_dataset_details.folder_path}/{self.pert_embedding_name}.pt")
-                pert_embedding = {pert_embedding["gene_names"][i]: pert_embedding["repr"][i] for i in range(len(pert_embedding["repr"]))}
-        else:
-            pert_embedding = get_identity_features(self.complete_training_adata)
-
+    
         # Doing the data split
-        if self.config.get_mode() == "ood":
+        if self.config.datasplit_config.mode == "ood":
             logger.info("Doing OOD split")
             # Taking cells for training where neither the cell nor the perturbation is held out
-            holdout_mask = (self.complete_training_adata.obs[PERT_KEY].isin(self.config.get_heldout_perts())) | (self.complete_training_adata.obs[CELL_KEY].isin(self.config.get_heldout_cells()))
+            holdout_mask = (self.complete_training_adata.obs[PERT_KEY].isin(self.config.datasplit_config.holdout_perts)) | (self.complete_training_adata.obs[CELL_KEY].isin(self.config.datasplit_config.holdout_cells))
             train_mask = ~holdout_mask
 
         # IID, we include unperturbed holdouts cells
@@ -205,12 +237,15 @@ class DataLoader:
             # Holding out only cells that have heldout perturbations AND cell. Thus:
             # A perturbation will be included on the non holdout cell type eg
             # Control of heldout cell type will be included
-            holdout_mask = (self.complete_training_adata.obs[CELL_KEY].isin(self.config.get_heldout_cells())) & (self.complete_training_adata.obs[PERT_KEY].isin(self.config.get_heldout_perts()))
+            holdout_mask = (self.complete_training_adata.obs[CELL_KEY].isin(self.config.datasplit_config.holdout_cells)) & (self.complete_training_adata.obs[PERT_KEY].isin(self.config.datasplit_config.holdout_perts))
             train_mask = ~holdout_mask
 
         #Subsetting complete dataset to entries for training
         adata_train = self.complete_training_adata[train_mask]
 
+
+        #We still return the pert embedding here to not break code that relies on it
+        pert_embedding = adata.uns[PERT_EMBEDDING_KEY]
         return adata_train, pert_embedding
 
 
@@ -228,10 +263,10 @@ class DataLoader:
         return self.complete_training_adata
 
     def get_eval_data(self):
-        self.eval_dataset_details = Catalogue.get_dataset_details(self.config.get_eval_dataset_name())
+        self.eval_dataset_details = Catalogue.get_dataset_details(self.config.eval_config.dataset)
 
         #To avoid loading the same data twice
-        if self.config.get_training_dataset_name() == self.config.get_eval_dataset_name():
+        if self.config.datasplit_config.dataset == self.config.eval_config.dataset:
             self.complete_eval_adata = self.get_complete_training_dataset()
 
         else:
@@ -244,23 +279,19 @@ class DataLoader:
             adata = self.preprocess_data(adata, training=False)
             self.complete_eval_adata = adata
 
-
-
         #TODO: Double check that this is evaluated lazily
-        logger.debug(f"Eval targets are {self.config.get_eval_targets()}")
-        for cell_id, pert_id in self.config.get_eval_targets():
+        logger.debug(f"Eval targets are {self.config.eval_config.evaluation_targets}")
+        for cell_id, pert_id in self.config.eval_config.evaluation_targets:
             gt_data = self.complete_eval_adata[(self.complete_eval_adata.obs[PERT_KEY] == pert_id) & (self.complete_eval_adata.obs[CELL_KEY] == cell_id)]
             ctrl_data = self.complete_eval_adata[(self.complete_eval_adata.obs[CELL_KEY] == cell_id) & (self.complete_eval_adata.obs[PERT_KEY] == CONTROL_PERT)]
 
-
-
             #If no data is found we skip the evaluation
             if len(gt_data) == 0:
-                logger.warning(f"No data found for cell: {cell_id}, pert: {pert_id} in {self.config.get_eval_dataset_name()}, will skip evaluation")
+                logger.warning(f"No data found for cell: {cell_id}, pert: {pert_id} in {self.config.eval_config.dataset}, will skip evaluation")
                 continue
             
             if len(ctrl_data) == 0:
-                logger.critical(f"No control data found for cell: {cell_id} in {self.config.get_eval_dataset_name()}, will skip evaluation")
+                logger.critical(f"No control data found for cell: {cell_id} in {self.config.eval_config.dataset}, will skip evaluation")
                 continue
            
             
