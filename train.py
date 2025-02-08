@@ -18,6 +18,7 @@ from omnicell.data.loader import DataLoader
 from omnicell.data.catalogue import Catalogue
 import time
 import datetime
+from omnicell.models.selector import load_model
 import torch
 
 
@@ -26,100 +27,6 @@ logger = logging.getLogger(__name__)
 
 random.seed(42)
 
-def get_model(model_name, config_model, loader, pert_embedding, input_dim, device, pert_ids):
-    
-    if pert_embedding is not None:
-        pert_keys = list(pert_embedding.keys())
-        pert_rep = np.array([pert_embedding[k] for k in pert_keys])
-        pert_map = {k: i for i, k in enumerate(pert_keys)}
-    else:
-        pert_rep = None
-        pert_map = None
-
-
-    if "nearest-neighbor_pert_emb" in model_name:
-        from omnicell.models.nearest_neighbor.predictor import NearestNeighborPredictor
-        logger.info("Nearest Neighbor model selected")
-        model = NearestNeighborPredictor(config_model, device, pert_rep=pert_rep, pert_map=pert_map)
-
-    elif 'nearest-neighbor_gene_dist' in model_name:
-        from omnicell.models.nearest_neighbor.gene_distance import NearestNeighborPredictor
-        logger.info("Nearest Neighbor Gene Distance model selected")
-        model = NearestNeighborPredictor(config_model)
-
-    elif 'flow' in model_name:
-        from omnicell.models.flows.flow_predictor import FlowPredictor
-        logger.info("Flow model selected")
-        model = FlowPredictor(config_model, input_dim, pert_rep, pert_map)
-
-    elif 'llm' in model_name:
-        from omnicell.models.llm.llm_predictor import LLMPredictor
-        logger.info("Transformer model selected")
-        model = LLMPredictor(config_model, input_dim, device, pert_ids)
-        
-    elif 'vae' in model_name:
-        from omnicell.models.VAE.vae import VAE
-        logger.info("VAE model selected")
-        model = VAE(config_model, input_dim, device, pert_ids)
-    
-    elif 'cell_emb' in model_name:
-        from omnicell.models.cell_emb.cell_emb_predictor import CellEmbPredictor
-        logger.info("Cell Emb model selected")
-        model = CellEmbPredictor(config_model, input_dim, device, pert_ids)
-
-    elif 'scVIDR' in model_name:
-        from omnicell.models.VAE.scVIDR_predictor import ScVIDRPredictor
-        logger.info("scVIDR model selected")
-        model = ScVIDRPredictor(config_model, input_dim, device, pert_ids)
-
-    elif "test" in model_name:
-        from omnicell.models.dummy_predictors.perfect_predictor import PerfectPredictor
-        logger.info("Test model selected")
-        adata_cheat = loader.get_complete_training_dataset()
-        model = PerfectPredictor(adata_cheat)
-    elif "nn_oracle" in model_name:
-        from omnicell.models.dummy_predictors.oracle_nearest_neighbor import OracleNNPredictor
-        logger.info("NN Oracle model selected")
-        adata_cheat = loader.get_complete_training_dataset()
-        model = OracleNNPredictor(adata_cheat, config_model)
-
-    elif "sclambda" in model_name:
-        from omnicell.models.sclambda.model import ModelPredictor
-        logger.info("SCLambda model selected")
-        model = ModelPredictor(input_dim, device, pert_embedding, **config_model)
-
-    elif "mean_model" in model_name:
-        from omnicell.models.mean_models.model import MeanPredictor
-        logger.info("Mean model selected")
-        model = MeanPredictor(config_model, pert_embedding)
-        
-    elif "control_predictor" in model_name:
-        from omnicell.models.dummy_predictors.control_predictor import ControlPredictor
-        logger.info("Control model selected")
-        adata_cheat = loader.get_complete_training_dataset()
-        model = ControlPredictor(adata_cheat)
-    
-    elif "proportional_scot" in model_name:
-        from omnicell.models.scot.proportional import ProportionalSCOT
-        logger.info("Proportional SCOT model selected")
-        adata_cheat = loader.get_complete_training_dataset()
-        model = ProportionalSCOT(adata_cheat)
-
-    elif "scot" in model_name:
-        from omnicell.models.scot.scot import SCOT
-        logger.info("SCOT model selected")
-        adata_cheat = loader.get_complete_training_dataset()
-        model = SCOT(adata_cheat, pert_embedding, **config_model)
-
-    elif "gears" in model_name:
-        from omnicell.models.gears.predictor import GEARSPredictor
-        logger.info("GEARS model selected")
-        model = GEARSPredictor(device, config_model)
-        
-    else:
-        raise ValueError(f'Unknown model name {model_name}')
-    
-    return model
 
 def main(*args):
     print("Running main")
@@ -168,15 +75,13 @@ def main(*args):
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     pert_ids = adata.obs[PERT_KEY].unique()
 
-    gene_emb_dim = adata.varm[GENE_EMBEDDING_KEY].shape[1] if GENE_EMBEDDING_KEY in adata.varm else None
 
     logger.info(f"Data loaded, # of cells: {adata.shape[0]}, # of features: {input_dim} # of perts: {len(pert_ids)}")
     logger.debug(f"Number of control cells {len(adata[adata.obs[PERT_KEY] == CONTROL_PERT])}")
     logger.info(f"Running experiment on {device}")
 
-    logger.debug(f"Training data loaded, perts are: {adata.obs[PERT_KEY].unique()}")
 
-    model = get_model(config.model_config.name, config.model_config.parameters, loader, pert_embedding, input_dim, device, pert_ids)
+    model = load_model(config.model_config, loader, pert_embedding, input_dim, device, pert_ids)
 
     model_savepath = Path(f"{config.get_train_path()}/training")
 

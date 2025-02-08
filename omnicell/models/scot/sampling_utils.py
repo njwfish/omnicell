@@ -1,7 +1,7 @@
 import torch
 import numpy as np
 
-from omnicell.models.distribute_shift import sample_pert
+from omnicell.models.utils.distribute_shift import sample_pert
 
 def sample_pert_from_model_numpy(model, ctrl, pert, max_rejections=100):
     mean_shift = pert.mean(axis=0) - ctrl.mean(axis=0)

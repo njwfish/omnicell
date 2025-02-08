@@ -5,7 +5,7 @@ import torch
 import logging
 from omnicell.constants import CELL_KEY, CONTROL_PERT, PERT_KEY
 from omnicell.models.VAE.vae import Net
-from omnicell.models.early_stopping import EarlyStopper
+from omnicell.models.utils.early_stopping import EarlyStopper
 from omnicell.processing.utils import to_dense
 
 logger = logging.getLogger(__name__)

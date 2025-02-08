@@ -4,7 +4,7 @@ import torch
 
 import numpy as np
 
-from omnicell.models.datamodules import get_dataloader
+from omnicell.models.utils.datamodules import get_dataloader
 
 from omnicell.models.flows.arch import CMHA, CMLP, CFM, CFMC, CMLPC
 from omnicell.models.flows.flow_utils import compute_conditional_flow
@@ -19,13 +19,17 @@ from omnicell.constants import CELL_KEY, CONTROL_PERT, PERT_KEY
 logger = logging.getLogger(__name__)
 
 class FlowPredictor():
-    def __init__(self, config, input_size, pert_rep, pert_map):
+    def __init__(self, config, input_size, pert_embedding):
         self.model_config = config['model'] if config['model'] is not None else {}
         self.trainig_config = config['training'] if config['training'] is not None else {}
 
+
+        pert_keys = list(pert_embedding.keys())
+        pert_rep = np.array([pert_embedding[k] for k in pert_keys])
+        self.pert_map = {k: i for i, k in enumerate(pert_keys)}
+
         self.max_epochs = self.trainig_config['max_epochs']
 
-        self.pert_map = {k: pert_rep[pert_map[k]] for k in pert_map}
         # self.pert_rep = pert_rep
 
         
@@ -73,9 +77,8 @@ class FlowPredictor():
     
 
     def make_predict(self, adata: sc.AnnData, pert_id: str, cell_type: str) -> np.ndarray:
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         cell_types = adata.obs[CELL_KEY].values
-        control_eval = adata[cell_types == cell_type].obsm['embedding']
+        control_eval = adata[cell_types == cell_type].X
         traj = compute_conditional_flow(
             self.model, 
             control_eval, 

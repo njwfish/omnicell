@@ -7,7 +7,7 @@ from typing import Iterator, List
 import numpy as np
 import pandas as pd
 from omnicell.constants import CELL_KEY, CONTROL_PERT, PERT_KEY
-from omnicell.models.collate_fns import ot_collate, cfm_collate, collate
+from omnicell.models.utils.collate_fns import ot_collate, cfm_collate, collate
 from collections import defaultdict
 
 from pathlib import Path
@@ -343,8 +343,7 @@ def get_dataloader(
                     num_files=num_files
                 )
         else:
-            if X is None:
-                X = adata.X.toarray()
+            X = adata.X
             
             control_idx = adata.obs[PERT_KEY] == CONTROL_PERT
             pert_idx = adata.obs[PERT_KEY] != CONTROL_PERT

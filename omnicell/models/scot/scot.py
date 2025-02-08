@@ -7,7 +7,7 @@ from torch import nn
 
 from omnicell.constants import *
 from omnicell.processing.utils import to_dense
-from omnicell.models.datamodules import get_dataloader
+from omnicell.models.utils.datamodules import get_dataloader
 
 from omnicell.models.scot.sampling_utils import batch_pert_sampling
 import tqdm

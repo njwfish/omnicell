@@ -53,6 +53,7 @@ def fit_supervised_model(X, Y, model_type='linear', **kwargs):
 
 def compute_cell_type_means(adata, cell_type):
     """Compute perturbation effect embeddings for a specific cell type"""
+    
     # Filter data for this cell type
     cell_type_data = adata[adata.obs[CELL_KEY] == cell_type]
     
@@ -62,7 +63,7 @@ def compute_cell_type_means(adata, cell_type):
     )
     
     # Convert to dense array if sparse
-    X = cell_type_data.X.toarray() if scipy.sparse.issparse(cell_type_data.X) else cell_type_data.X
+    X = cell_type_data.X
     
     # Create dataframe
     df = pd.DataFrame(X, index=cell_type_data.obs.index)
@@ -122,7 +123,7 @@ class MeanPredictor():
         self.model, mse, r2 = fit_supervised_model(X, Y, model_type=self.model_type)
         
     def make_predict(self, adata: sc.AnnData, pert_id: str, cell_type: str) -> np.ndarray:
-        ctrl_cells = adata[(adata.obs[PERT_KEY] == CONTROL_PERT) & (adata.obs[CELL_KEY] == cell_type)].X.toarray()
+        ctrl_cells = adata[(adata.obs[PERT_KEY] == CONTROL_PERT) & (adata.obs[CELL_KEY] == cell_type)].X
         X_new = np.array(self.pert_embedding[pert_id].reshape(1, -1))
         mean_shift_pred = np.array(self.model.predict(X_new)).flatten()
         weighted_dist = get_proportional_weighted_dist(ctrl_cells)

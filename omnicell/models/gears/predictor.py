@@ -139,7 +139,7 @@ class GEARSPredictor():
         bulk_pred = np.array(bulk_pred)
 
 
-        control_cells = adata[(adata.obs[PERT_KEY] == CONTROL_PERT) & (adata.obs[CELL_KEY] == cell_type)].X.toarray()
+        control_cells = adata[(adata.obs[PERT_KEY] == CONTROL_PERT) & (adata.obs[CELL_KEY] == cell_type)].X
 
         mean_control = control_cells.mean(axis=0)
         mean_shift = bulk_pred - mean_control

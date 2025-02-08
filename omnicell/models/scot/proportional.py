@@ -34,8 +34,8 @@ class ProportionalSCOT():
         return get_proportional_weighted_dist(ctrl)
 
     def make_predict(self, adata: sc.AnnData, pert_id: str, cell_type: str) -> np.ndarray:
-        X_ctrl = to_dense(self.total_adata[(self.total_adata.obs[PERT_KEY] == CONTROL_PERT) & (self.total_adata.obs[CELL_KEY] == cell_type)].X.toarray())
-        X_pert = to_dense(self.total_adata[(self.total_adata.obs[PERT_KEY] == pert_id) & (self.total_adata.obs[CELL_KEY] == cell_type)].X.toarray())
+        X_ctrl = self.total_adata[(self.total_adata.obs[PERT_KEY] == CONTROL_PERT) & (self.total_adata.obs[CELL_KEY] == cell_type)].X
+        X_pert = self.total_adata[(self.total_adata.obs[PERT_KEY] == pert_id) & (self.total_adata.obs[CELL_KEY] == cell_type)].X
         
         return batch_pert_sampling(self, X_ctrl, X_pert)
             

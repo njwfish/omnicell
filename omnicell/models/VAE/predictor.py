@@ -6,7 +6,7 @@ import logging
 from typing import Optional
 from omnicell.constants import CELL_KEY, CONTROL_PERT, PERT_KEY
 from omnicell.models.VAE.vae import Net
-from omnicell.models.early_stopping import EarlyStopper
+from omnicell.models.utils.early_stopping import EarlyStopper
 from omnicell.processing.utils import to_dense
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ class VAEPredictor():
 
     #Note this model needs the entire data or sth like that. 
     #The mean operations are computed on the entire dataset.
-    def train(self, adata):
+    def train(self, adata, **kwargs):
 
         self.cell_ids = adata.obs[CELL_KEY].unique()
         device = self.device

@@ -172,7 +172,7 @@ class DataLoader:
             logger.info(f"Removed {number_perts_before - number_perts_after_column_matching} perturbations that were not in the dataset columns and {number_perts_after_column_matching - number_perts_after_embedding_matching} perturbations that did not have an embedding for a total of {number_perts_before - number_perts_after_embedding_matching} perturbations removed out of an initial {number_perts_before} perturbations")
         
         
-        adata.obsm["embedding"] = adata.X.toarray().astype('float32')
+        adata.X = adata.X.toarray().astype('float32')
         # Set gene names
         if dataset_details.var_names_key:
             adata.var_names = adata.var[dataset_details.var_names_key]

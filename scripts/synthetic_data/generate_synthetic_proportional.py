@@ -15,10 +15,10 @@ from omnicell.data.catalogue import Catalogue
 
 import torch
 import pickle
-from omnicell.models.datamodules import get_dataloader
+from omnicell.models.utils.datamodules import get_dataloader
 import logging 
 
-from omnicell.train import load_model
+from omnicell.models.selector import load_model
 
 from omnicell.models.scot.sampling_utils import generate_batched_counterfactuals
 logger = logging.getLogger(__name__)
@@ -48,11 +48,20 @@ def main():
         print(f"Synthetic data with name {synthetic_data_name} already exists for dataset {args.dataset}, skipping.")
         return
 
-    model = load_model(config.model_config)
+
+
     # Initialize data loader and load training data
     loader = DataLoader(config)
     adata, pert_rep_map = loader.get_training_data()
 
+    adata, pert_embedding = loader.get_training_data()
+        
+    input_dim = adata.obsm['embedding'].shape[1]
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    pert_ids = adata.obs[PERT_KEY].unique()
+
+
+    model = load_model(config.model_config, loader, pert_embedding, input_dim, device, pert_ids)
 
     dset, dl = get_dataloader(adata, pert_ids=np.array(adata.obs[PERT_KEY].values), offline=False, pert_map=pert_rep_map, collate='ot')
 

@@ -8,14 +8,14 @@ import logging
 from typing import Optional, Tuple, Dict
 import pickle
 from torch import pca_lowrank 
-from omnicell.models.metric_fns import distance_metrics
+from omnicell.models.utils.metric_fns import distance_metrics
 from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
 
 class NearestNeighborPredictor():
-    def __init__(self, config, device, pert_rep=None, pert_map=None):
+    def __init__(self, config, device, pert_embedding: Dict[str, np.ndarray]):
         self.config = config
         self.train_adata = None
         self.seen_cell_types = None
@@ -27,6 +27,10 @@ class NearestNeighborPredictor():
         #TODO: Metrics in specific space
         self.pert_dist_fn = distance_metrics[config['pert_dist_metric']]
         self.cell_dist_fn = distance_metrics[config['cell_dist_metric']]
+
+        pert_keys = list(pert_embedding.keys())
+        pert_rep = np.array([pert_embedding[k] for k in pert_keys])
+        pert_map = {k: i for i, k in enumerate(pert_keys)}
 
         self.cell_reps = None
         self.metric_space = config['cell_metric_space']

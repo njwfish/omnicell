@@ -5,7 +5,7 @@ import torch
 import numpy as np
 import pickle 
 
-from omnicell.models.datamodules import get_dataloader
+from omnicell.models.utils.datamodules import get_dataloader
 
 from omnicell.models.cell_emb.cell_emb import *
 from omnicell.models.flows.flow_utils import compute_conditional_flow
@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 import numpy as np
 import torch
+from pathlib import Path
 from torch.utils.data import Dataset, DataLoader
 
 # Create a custom Dataset class
@@ -76,7 +77,7 @@ def compute_conditional_flow(
     return preds
 
 class CellEmbPredictor():
-    def __init__(self, config, input_size, pert_rep, pert_map):
+    def __init__(self, config, input_size, device):
         # self.model_config = config['model'] if config['model'] is not None else {}
         # self.trainig_config = config['training'] if config['training'] is not None else {}
 
@@ -88,12 +89,13 @@ class CellEmbPredictor():
             encoder_layer=4,
             ff_dim=256
         )
+        self.device = device
                 
     #Should take care of saving the model under some results/model/checkpoints in 
     #BTW I think hidden dirs fuck with with the cluster, so don't call it .checkpoint
     def train(self, adata, model_savepath: Path):
 
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        device = self.device
 
         logger.debug(f"Adata obsm keys: {adata.obsm}")
 

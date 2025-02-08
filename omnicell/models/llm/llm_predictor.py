@@ -4,7 +4,7 @@ import yaml
 import numpy as np
 import math 
 from omnicell.models.llm.llm import MAE
-from omnicell.models.datamodules import get_dataloader
+from omnicell.models.utils.datamodules import get_dataloader
 
 from torchcfm.conditional_flow_matching import *
 import scanpy as sc
