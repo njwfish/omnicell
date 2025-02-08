@@ -4,7 +4,7 @@
 #SBATCH --mem=250GB
 #SBATCH --gres=gpu:h100:1  # 1 h100 GPU
 #SBATCH -p ou_bcs_low
-#SBATCH --array=0-3        # 1 ETL x 2 Models x 2 Splits = 4 combinations
+#SBATCH --array=0-1      # 1 ETL x 2 Models x 2 Splits = 4 combinations
 
 hostname
 
@@ -18,7 +18,7 @@ SPLIT_BASE_DIR="${CONFIG_BASE_DIR}/splits/${DATASET}/random_splits/rs_accP_k562_
 
 # Define configs and splits
 ETL_CONFIGS=("no_preproc_drop_unmatched")
-MODELS=("scot" "proportional_scot")
+MODELS=("scot")
 SPLITS=(0 1)
 
 # Calculate indices

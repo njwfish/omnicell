@@ -50,7 +50,7 @@ class StratifiedBatchSampler(Sampler[List[int]]):
             yield zip(batch_stratum, batch)
 
     def __len__(self) -> int:
-        return np.sum(self.ns) // self.batch_size
+        return np.sum(np.minimum(self.ns // self.batch_size, 1))
 
 class OnlinePairedStratifiedDataset(torch.utils.data.Dataset):
     def __init__(

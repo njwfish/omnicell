@@ -12,6 +12,9 @@ def sample_pert_from_model(model, ctrl, pert, max_rejections=100, device=None):
     # if model hasattr numpy_model, use numpy model
     if hasattr(model, 'numpy_model') and model.numpy_model:
         return sample_pert_from_model_numpy(model, ctrl, pert, max_rejections)
+    # check model is on device
+    if next(model.parameters()).device != device:
+        model = model.to(device)
     mean_shift = pert.mean(axis=0) - ctrl.mean(axis=0)
     ctrl_tensor = torch.tensor(ctrl).to(device)
     mean_shift_tensor = torch.tensor(mean_shift).to(device)

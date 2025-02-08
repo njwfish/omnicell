@@ -1,5 +1,5 @@
 name: scot
 hidden_dim: 64
-cell_embed_dim: 64
+cell_embed_dim: 128
 gene_embed_dim: 64
 max_epochs: 100

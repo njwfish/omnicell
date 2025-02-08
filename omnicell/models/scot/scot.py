@@ -3,15 +3,15 @@ import scanpy as sc
 
 import torch
 import torch.nn.functional as F
-from torch_geometric.nn import GATConv, global_mean_pool
-from torch_geometric.data import Data
+from torch import nn
 
 from omnicell.constants import *
 from omnicell.processing.utils import to_dense
-from omnicell.models.distribute_shift import sample_pert
 from omnicell.models.datamodules import get_dataloader
 
 from omnicell.models.scot.sampling_utils import batch_pert_sampling
+import tqdm
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import logging
 logger = logging.getLogger(__name__)
@@ -49,40 +49,51 @@ def sliced_wasserstein_distance(X1, X2, n_projections=100, p=2):
 
     return SW_dist
 
+class MLP(nn.Module):
+    def __init__(self, in_dim, hidden_dim, out_dim, layers=2):
+        super().__init__()
+        self.layers = nn.ModuleList([
+            nn.Linear(in_dim, hidden_dim),
+            nn.LeakyReLU()
+        ])
+        for _ in range(layers - 1):
+            self.layers.append(nn.Linear(hidden_dim, hidden_dim))
+            self.layers.append(nn.LeakyReLU())
+        self.layers.append(nn.Linear(hidden_dim, out_dim))
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+class MeanPooledFC(nn.Module):
+    def __init__(self, in_dim, hidden_dim, out_dim, layers):
+        super().__init__()
+        self.fc = MLP(2 * in_dim, hidden_dim, out_dim, layers=layers)
+
+    def forward(self, x):
+        pooled_rep = x.mean(dim=0)
+        pooled_rep = torch.tile(pooled_rep, (x.shape[0], 1))
+        x = torch.cat([x, pooled_rep], dim=1)
+        return self.fc(x)
+
+
 class FCGNN(torch.nn.Module):
     def __init__(self, in_dim, hidden_dim, out_dim):
         super(FCGNN, self).__init__()
-        self.fc1 = torch.nn.Linear(in_dim, hidden_dim)
-        self.fc2 = torch.nn.Linear(2 * hidden_dim, hidden_dim)
-        self.fc3 = torch.nn.Linear(2 * hidden_dim, out_dim)
+        self.predictor = nn.Sequential(
+            torch.nn.Linear(in_dim, 2 * hidden_dim),
+            nn.LeakyReLU(),
+            MeanPooledFC(2 * hidden_dim, hidden_dim, hidden_dim, 1),
+            nn.LeakyReLU(),
+            MeanPooledFC(hidden_dim, hidden_dim, hidden_dim, 1),
+            nn.LeakyReLU(),
+            torch.nn.Linear(hidden_dim, out_dim)
+        )
 
     def forward(self, z):
-        x = self.fc1(z)
-        x = F.elu(x)
-        pooled_rep = x.mean(dim=0)
-        pooled_rep = torch.tile(pooled_rep, (x.shape[0], 1))
-        # x = x + pooled_rep
-        x = torch.cat([x, pooled_rep], dim=1)
-        x = self.fc2(x)
-        pooled_rep = x.mean(dim=0)
-        pooled_rep = torch.tile(pooled_rep, (x.shape[0], 1))
-        # x = x + pooled_rep
-        x = torch.cat([x, pooled_rep], dim=1)
-        x = F.elu(x)
-        x = self.fc3(x)
-        return x
+        return self.predictor(z)
 
-class CellEmbedding(torch.nn.Module):
-    def __init__(self, in_dim, hidden_dim, out_dim):
-        super(CellEmbedding, self).__init__()
-        self.fc1 = torch.nn.Linear(in_dim, hidden_dim)
-        self.fc2 = torch.nn.Linear(hidden_dim, out_dim)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = F.elu(x)
-        x = self.fc2(x)
-        return x
 
 class SCOT(torch.nn.Module):
     def __init__(self, adata, pert_embedding, cell_embed_dim, gene_embed_dim, hidden_dim, max_epochs=10):
@@ -90,12 +101,12 @@ class SCOT(torch.nn.Module):
         self.total_adata = adata
         self.total_genes = adata.shape[1]
         self.pert_embedding = pert_embedding
-        self.cell_embedder = CellEmbedding(self.total_genes, hidden_dim, cell_embed_dim)
+        self.cell_embedder = MLP(self.total_genes, 2 * cell_embed_dim, cell_embed_dim, layers=3)
         self.gene_embedder = torch.nn.Embedding(self.total_genes, gene_embed_dim)
         self.gnn = FCGNN(gene_embed_dim + cell_embed_dim + 3, hidden_dim, 1)
         self.max_epochs = max_epochs
 
-    def forward(self, ctrl, shift_vec, gene_indices=None):
+    def forward(self, ctrl, mean_shift, gene_indices=None):
         device = ctrl.device
         if gene_indices is None:
             gene_indices = torch.arange(self.total_genes).to(device)
@@ -107,12 +118,12 @@ class SCOT(torch.nn.Module):
         cell_embed = torch.tile(cell_embed[:, None, :], (1, num_genes, 1))
 
         ctrl = ctrl[:, gene_indices]
-        shift_vec = shift_vec[gene_indices]
+        mean_shift = mean_shift[gene_indices]
 
         gene_embed = self.gene_embedder(gene_indices)
         gene_embed = torch.tile(gene_embed, (num_cells, 1, 1))
 
-        shift = torch.tile(shift_vec[None, :, None], (num_cells, 1, 1))
+        shift = torch.tile(mean_shift[None, :, None], (num_cells, 1, 1))
 
         num_cells = torch.tile(num_cells, (num_cells, num_genes, 1))
 
@@ -127,44 +138,82 @@ class SCOT(torch.nn.Module):
         batch_size = torch.tensor(ctrl.shape[0]).to(device)
     
         shift_vec = pert.sum(axis=0) - ctrl.sum(axis=0)
+        weighted_dist = self.forward(ctrl, shift_vec / batch_size)
 
-        weighted_dist = self.forward(ctrl, shift_vec)
         pred_pert = (ctrl + (weighted_dist * shift_vec))
+
         loss = sliced_wasserstein_distance(pred_pert, pert, n_projections=n_projections) 
-        loss -=negative_penalty * ((pred_pert < 0) * pred_pert).sum() / (batch_size * self.total_genes)
+        loss -= negative_penalty * ((pred_pert < 0) * pred_pert).sum() / (batch_size * self.total_genes)
         return loss
     
-    def train(self, adata, model_savepath):
-        _, dl = get_dataloader(
-            adata, pert_ids=np.array(adata.obs[PERT_KEY].values), offline=False, pert_map=self.pert_embedding, collate='ot'
-        )
+    def train(self, adata, model_savepath, dl=None):
+        if dl is None:
+            _, dl = get_dataloader(
+                adata, pert_ids=np.array(adata.obs[PERT_KEY].values), offline=False, pert_map=self.pert_embedding, collate=None
+            )
+
         optimizer = torch.optim.Adam(self.parameters(), lr=2e-4)
+        scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.8, patience=2, verbose=True)
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.to(device)
 
         num_epochs = self.max_epochs
         logger.info(f"Training for {num_epochs} epochs")
-        for epoch in range(num_epochs):
 
-            losses = []
-            for i, (ctrl, pert, pert_id) in enumerate(dl):
-                # generate random indices for ctrl and pert
-                
+        best_loss = float('inf')
+        plateau_count = 0
+        for epoch in range(num_epochs):
+            running_loss = 0.0
+            current_lr = optimizer.param_groups[0]['lr']
+            
+            # Create progress bar for this epoch
+            pbar = tqdm.tqdm(dl, desc=f'Epoch [{epoch+1}/{num_epochs}]', leave=True)
+            
+            for batch_idx, (ctrl, pert, pert_id) in enumerate(pbar):
                 ctrl, pert = ctrl.to(device), pert.to(device)
+                
+                # Forward pass and loss calculation
                 loss = self.loss(ctrl, pert)
                 
-                losses.append(loss.item())
-                # Update progress bar with loss
-
+                # Backward pass and optimization
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
-
-            logger.info(f"Epoch {epoch + 1}/{num_epochs} - Loss: {np.mean(losses)}")
-
-
+                
+                # Update running loss and progress bar
+                running_loss += loss.item()
+                avg_loss = running_loss / (batch_idx + 1)
+                
+                # Update progress bar description with current loss and lr
+                pbar.set_postfix({
+                    'loss': f'{avg_loss:.4f}',
+                    'best': f'{best_loss:.4f}',
+                    'lr': f'{current_lr:.2e}'
+                })
+            
+            # Calculate epoch average loss
+            epoch_loss = running_loss / (batch_idx + 1)
+            
+            # Update learning rate based on loss plateau
+            scheduler.step(epoch_loss)
+            
+            # Update best loss
+            if epoch_loss < best_loss:
+                best_loss = epoch_loss
+                plateau_count = 0
+            else:
+                plateau_count += 1
+            
+            # Log epoch results
+            logger.info(f'Epoch {epoch+1}/{num_epochs} - Avg Loss: {epoch_loss:.4f} - Best Loss: {best_loss:.4f} - LR: {current_lr:.2e}')
+    
     def make_predict(self, adata: sc.AnnData, pert_id: str, cell_type: str) -> np.ndarray:
         X_ctrl = to_dense(self.total_adata[(self.total_adata.obs[PERT_KEY] == CONTROL_PERT) & (self.total_adata.obs[CELL_KEY] == cell_type)].X.toarray())
         X_pert = to_dense(self.total_adata[(self.total_adata.obs[PERT_KEY] == pert_id) & (self.total_adata.obs[CELL_KEY] == cell_type)].X.toarray())
-
         return batch_pert_sampling(self, X_ctrl, X_pert)
+    
+    def save(self, path):
+        torch.save(self.state_dict(), path)
+
+    def load(self, path):
+        self.load_state_dict(torch.load(path))
