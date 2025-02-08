@@ -46,6 +46,9 @@ def are_identical(vals):
     return all(i == vals[0] for i in vals)
 
 def df_to_heatmap(df, title, path):
+    print(df)
+    df = df.sort_index()
+    print(df)
 
     # Calculate figure size based on dataframe dimensions
     row_count, col_count = df.shape
@@ -145,7 +148,6 @@ def get_variable_and_fixed_params(all_results, all_results_concat_dict):
 # What are the issues, saving all that shit consistently is a pain, selecting the right stuff etc. but at least we can deploy
 # Several folds, several targets in each fold 
 def main(*args):
-
 
     parser = argparse.ArgumentParser(description='Analysis settings.')
 
