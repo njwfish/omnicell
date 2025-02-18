@@ -15,4 +15,5 @@ path: /orcd/data/omarabu/001/Omnicell_datasets/kang/kang.h5ad
 pert_embeddings: []
 pert_key: condition_key
 precomputed_DEGs: false
+synthetic_versions: []
 var_names_key: null

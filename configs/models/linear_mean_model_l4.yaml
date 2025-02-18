@@ -1,0 +1,8 @@
+#version: This can be any text_field
+
+name: mean_model
+
+model_type: l4
+pca_pert_embeddings: True
+pca_pert_embeddings_components: 10
+autofocus: True

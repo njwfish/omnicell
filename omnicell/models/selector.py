@@ -43,9 +43,9 @@ def load_model(model_config: ModelConfig, loader: DataLoader, pert_embedding: Di
         model = CellEmbPredictor(model_parameters, input_dim)
 
     elif 'scVIDR' in model_name:
-        from omnicell.models.VAE.scVIDR_predictor import ScVIDRPredictor
+        from omnicell.models.VAE.scVIDR import scVIDRPredictor
         logger.info("scVIDR model selected")
-        model = ScVIDRPredictor(model_parameters, input_dim, device, pert_ids)
+        model = scVIDRPredictor(model_parameters, input_dim, device, pert_ids)
 
     elif "test" in model_name:
         from omnicell.models.dummy_predictors.perfect_predictor import PerfectPredictor
@@ -77,7 +77,8 @@ def load_model(model_config: ModelConfig, loader: DataLoader, pert_embedding: Di
     elif "proportional_scot" in model_name:
         from omnicell.models.scot.proportional import ProportionalSCOT
         logger.info("Proportional SCOT model selected")
-        model = ProportionalSCOT(pert_embedding, model_parameters)
+        adata_cheat = loader.get_complete_training_dataset()
+        model = ProportionalSCOT(adata_cheat, pert_embedding, model_parameters)
 
     elif "scot" in model_name:
         from omnicell.models.scot.scot import SCOT
@@ -94,6 +95,12 @@ def load_model(model_config: ModelConfig, loader: DataLoader, pert_embedding: Di
         from omnicell.models.Autoencoder.model import autoencoder
         logger.info("Autoencoder model selected")
         model = autoencoder(model_parameters, input_dim)
+
+    elif "sparsity_gt" in model_name:
+        from omnicell.models.dummy_predictors.sparsity_gt import SparsityGroundTruthPredictor
+        logger.info("Sparsity GT model selected")
+        adata_cheat = loader.get_complete_training_dataset()
+        model = SparsityGroundTruthPredictor(adata_cheat)
 
     else:
         raise ValueError(f'Unknown model name {model_name}')

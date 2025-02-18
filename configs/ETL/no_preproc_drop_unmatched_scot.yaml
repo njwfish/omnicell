@@ -3,10 +3,7 @@ log1p: False
 HVG: False 
 count_norm: False
 drop_unmatched_perts: True
-synthetic: 
-  method_config: ./configs/models/scot/scot.yaml
-  batch_size: 512
-  collate_fn: None
+synthetic_model_config_path: ./configs/models/scot/proportional_scot.yaml #Should be a relative path
 
 
 

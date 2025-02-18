@@ -1,9 +1,9 @@
 #!/bin/bash
-#SBATCH -t 12:00:00
+#SBATCH -t 3:00:00
 #SBATCH -n 4
 #SBATCH --mem=50GB
 #SBATCH -p newnodes
-#SBATCH --array=0-5        # 1 ETL x 3 Models x 2 Splits = 6 combinations
+#SBATCH --array=0-7      # 1 ETL x 3 Models x 2 Splits = 6 combinations
 
 hostname
 
@@ -17,7 +17,7 @@ SPLIT_BASE_DIR="${CONFIG_BASE_DIR}/splits/${DATASET}/random_splits/rs_accP_k562_
 
 # Define configs and splits
 ETL_CONFIGS=("no_preproc_drop_unmatched")
-MODELS=("nn_oracle" "control_predictor" "test")
+MODELS=("nn_oracle" "control_predictor" "test" "sparsity_gt")
 SPLITS=(0 1)
 
 # Calculate indices

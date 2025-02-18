@@ -1,5 +1,6 @@
 HVG: false
-cell_embeddings: ['barcodes']
+cell_embeddings:
+- barcodes
 cell_key: cell_line
 control: non-targeting
 count_normalized: false
@@ -11,4 +12,5 @@ path: /orcd/data/omarabu/001/Omnicell_datasets/XieHon2017/XieHon2017.h5ad
 pert_embeddings: []
 pert_key: perturbation
 precomputed_DEGs: false
+synthetic_versions: []
 var_names_key: null

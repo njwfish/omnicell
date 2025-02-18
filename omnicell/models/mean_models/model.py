@@ -12,8 +12,9 @@ from sklearn.svm import SVR
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.decomposition import PCA
 from pathlib import Path
+from omnicell.models.mean_models.L4Regressor import L4Regressor
 
-from omnicell.models.distribute_shift import sample_pert, get_proportional_weighted_dist
+from omnicell.models.utils.distribute_shift import sample_pert, get_proportional_weighted_dist
 
 
 def fit_supervised_model(X, Y, model_type='linear', **kwargs):
@@ -35,12 +36,16 @@ def fit_supervised_model(X, Y, model_type='linear', **kwargs):
         'lasso': Lasso,
         'elastic_net': ElasticNet,
         'rf': RandomForestRegressor,
-        'svr': SVR
+        'svr': SVR,
+        'l4': L4Regressor  # Add the custom L4 regressor
+
     }
     
     if model_type not in models:
         raise ValueError(f"Model type {model_type} not supported. Choose from {list(models.keys())}")
     
+
+
     model = models[model_type](**kwargs)
     model.fit(X, Y)
     

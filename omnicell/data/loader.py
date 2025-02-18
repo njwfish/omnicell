@@ -2,7 +2,7 @@ import scanpy as sc
 from typing import Optional, List, Tuple
 from dataclasses import dataclass, field
 from omnicell.config.config import Config, ModelConfig
-from omnicell.constants import PERT_KEY, CELL_KEY, CONTROL_PERT, PERT_EMBEDDING_KEY, SYNTHETIC_DATA_PATHS_KEY
+from omnicell.constants import PERT_KEY, CELL_KEY, CONTROL_PERT, PERT_EMBEDDING_KEY, SYNTHETIC_DATA_PATHS_KEY, OMNICELL_ROOT
 from omnicell.data.catalogue import DatasetDetails, Catalogue
 import torch
 import logging
@@ -10,6 +10,7 @@ import numpy as np
 import json
 import pandas as pd
 from pathlib import Path
+import copy
 import os
 import hashlib
 import anndata
@@ -207,20 +208,21 @@ class DataLoader:
 
 
         #Synthetic config is specified
-        if self.config.etl_config.synthetic is not None:
-            model_config_path = self.config.etl_config.synthetic.model_config_path
-            synthetic_model_config = ModelConfig.from_yaml(Path(model_config_path).resolve())
+        if self.config.etl_config.synthetic_model_config_path is not None:
+            model_config_path = self.config.etl_config.synthetic_model_config_path
+            
+            
+            synthetic_model_config = ModelConfig.from_yaml(Path(f"{OMNICELL_ROOT}/{model_config_path}").resolve())
 
-            #Fetch the training config for the synthetic data, ETL and Split config should be the same, modulo the synthetic part
-            synthetic_data_config = self.config.etl_config.copy()
-            synthetic_data_config.synthetic = None
+            synthetic_data_etl_config = copy.deepcopy(self.config.etl_config)
+            synthetic_data_etl_config.synthetic_model_config_path = None
 
-            synthetic_datasplit_config = self.config.datasplit_config.copy()
+            synthetic_datasplit_config = copy.deepcopy(self.config.datasplit_config)
 
 
             #Config that should have been used to generate the synthetic data
             synthetic_data_config = Config(model_config=synthetic_model_config,
-                                            etl_config=synthetic_data_config,
+                                            etl_config=synthetic_data_etl_config,
                                             datasplit_config=synthetic_datasplit_config)
 
 
@@ -228,13 +230,15 @@ class DataLoader:
             if synthetic_data_config.get_synthetic_config_ID() not in self.training_dataset_details.synthetic_versions:
                 raise ValueError(f"Could not find a config with name {synthetic_data_config.get_synthetic_config_ID()} for dataset {self.training_dataset_details.name}, please check that the synthetic data was generated with the same config.")
 
+
+            logger.info(f"Loading synthetic data with name {synthetic_data_config.get_synthetic_config_ID()}")
             #We load the synthetic data
             synthetic_data_path = f"{dataset_details.folder_path}/synthetic_data/{synthetic_data_config.get_synthetic_config_ID()}"
 
             synthetic_data_files = os.listdir(synthetic_data_path)
 
             #We get the paths of all the files in this folder
-            synthetic_data_paths = [Path(f"{synthetic_data_path}/{file}").resolve() for file in synthetic_data_files]
+            synthetic_data_paths = [Path(f"{synthetic_data_path}/{file}").resolve() for file in synthetic_data_files if file.endswith(".pkl")]
 
             #We add them to the adata
             adata.uns[SYNTHETIC_DATA_PATHS_KEY] = synthetic_data_paths

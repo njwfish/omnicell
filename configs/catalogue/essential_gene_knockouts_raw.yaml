@@ -20,4 +20,5 @@ pert_embeddings:
 - GenePT
 pert_key: gene
 precomputed_DEGs: true
+synthetic_versions: []
 var_names_key: null

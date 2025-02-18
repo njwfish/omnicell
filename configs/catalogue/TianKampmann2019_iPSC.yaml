@@ -11,4 +11,5 @@ path: /orcd/data/omarabu/001/Omnicell_datasets/TianKampmann2019/iPSC/TianKampman
 pert_embeddings: []
 pert_key: perturbation
 precomputed_DEGs: false
+synthetic_versions: []
 var_names_key: null

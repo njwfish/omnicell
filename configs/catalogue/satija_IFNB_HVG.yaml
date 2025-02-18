@@ -11,4 +11,5 @@ path: /orcd/archive/abugoot/001/Projects/dlesman/datasets/satija_IFNB_raw/Seurat
 pert_embeddings: []
 pert_key: gene
 precomputed_DEGs: false
+synthetic_versions: []
 var_names_key: gene

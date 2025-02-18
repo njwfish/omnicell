@@ -43,6 +43,8 @@ class DatasetDetails:
     def to_dict(self):
         return asdict(self)
 
+ 
+
 
 """Static class, handles all read and writes atomically"""
 class Catalogue: 

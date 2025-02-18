@@ -1,5 +1,6 @@
 HVG: false
-cell_embeddings: ['clone_matrix']
+cell_embeddings:
+- clone_matrix
 cell_key: celltype
 control: non-targeting
 count_normalized: false
@@ -11,4 +12,5 @@ path: /orcd/data/omarabu/001/Omnicell_datasets/WeinrebKlein2020/WeinrebKlein2020
 pert_embeddings: []
 pert_key: perturbation
 precomputed_DEGs: false
+synthetic_versions: []
 var_names_key: gene_symbol
